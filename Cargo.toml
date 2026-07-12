@@ -1,0 +1,31 @@
+[package]
+name = "rust-base-server"
+version = "0.1.0"
+description = "A Rocket server in Rust."
+edition = "2024"
+repository = "https://github.com/javidahmed64592/rust-base-server"
+homepage = "https://github.com/javidahmed64592/rust-base-server"
+license = "MIT"
+authors = ["Javid Ahmed <javidahmed@icloud.com>"]
+
+[package.metadata.wix]
+upgrade-guid = "5C25D2FE-94E1-4BD1-9DD5-4BA37A737700"
+path-guid = "330E736F-2F5D-402C-9731-C6147B1CAE0A"
+license = false
+eula = false
+
+[[bin]]
+name = "create-user"
+path = "src/bin/create_user.rs"
+
+[dependencies]
+argon2 = "0.5.3"
+rocket = { version = "0.5.1", features = ["json", "secrets"] }
+rocket_db_pools = { version = "0.2.0", features = ["sqlx_sqlite"] }
+rpassword = "7.5.4"
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
