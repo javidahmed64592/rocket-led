@@ -1,10 +1,10 @@
 [package]
-name = "rust-base-server"
+name = "rocket-led"
 version = "0.1.0"
-description = "A Rocket server in Rust."
+description = "A Rocket application for controlling RGB LEDs on a Raspberry Pi."
 edition = "2024"
-repository = "https://github.com/javidahmed64592/rust-base-server"
-homepage = "https://github.com/javidahmed64592/rust-base-server"
+repository = "https://github.com/javidahmed64592/rocket-led"
+homepage = "https://github.com/javidahmed64592/rocket-led"
 license = "MIT"
 authors = ["Javid Ahmed <javidahmed@icloud.com>"]
 
@@ -25,6 +25,7 @@ rocket_db_pools = { version = "0.2.0", features = ["sqlx_sqlite"] }
 rpassword = "7.5.4"
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+sqlx = { version = "0.7", default-features = false, features = ["macros", "sqlite"] }
 
 [profile.dist]
 inherits = "release"
