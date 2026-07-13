@@ -1,7 +1,7 @@
 use rocket::serde::json::Json;
 use rocket::{Route, State, delete, get, post, routes};
 use rocket_db_pools::{Connection, sqlx};
-use rocket_led::{PinMapping, RgbColour};
+use rocket_led::{AuthenticatedUser, PinMapping, RgbColour};
 use rppal::gpio::Gpio;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -31,7 +31,10 @@ pub struct ApiError {
 }
 
 #[get("/mappings")]
-async fn list_mappings(mut db: Connection<AppDb>) -> Result<Json<Vec<PinMapping>>, Json<ApiError>> {
+async fn list_mappings(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+) -> Result<Json<Vec<PinMapping>>, Json<ApiError>> {
     let rows = sqlx::query_as::<_, PinMapping>(
         "SELECT id, name, red_pin, green_pin, blue_pin FROM pin_mappings",
     )
@@ -48,9 +51,33 @@ async fn list_mappings(mut db: Connection<AppDb>) -> Result<Json<Vec<PinMapping>
 
 #[post("/mappings", data = "<mapping>")]
 async fn create_mapping(
+    _user: AuthenticatedUser,
     mut db: Connection<AppDb>,
     mapping: Json<NewPinMapping>,
 ) -> Result<Json<PinMapping>, Json<ApiError>> {
+    // Check if any pins are already in use
+    let existing: Option<PinMapping> = sqlx::query_as(
+        "SELECT id, name, red_pin, green_pin, blue_pin FROM pin_mappings
+         WHERE red_pin = ? OR green_pin = ? OR blue_pin = ?",
+    )
+    .bind(mapping.red_pin)
+    .bind(mapping.green_pin)
+    .bind(mapping.blue_pin)
+    .fetch_optional(&mut **db)
+    .await
+    .map_err(|e| {
+        Json(ApiError {
+            message: e.to_string(),
+        })
+    })?;
+
+    if existing.is_some() {
+        return Err(Json(ApiError {
+            message: "One or more pins are already in use.".into(),
+        }));
+    }
+
+    // Create the mapping
     let id: i64 = sqlx::query(
         "INSERT INTO pin_mappings (name, red_pin, green_pin, blue_pin) VALUES (?, ?, ?, ?)",
     )
@@ -76,8 +103,68 @@ async fn create_mapping(
     }))
 }
 
+#[patch("/mappings/<id>", data = "<mapping>")]
+async fn update_mapping(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+    id: i64,
+    mapping: Json<NewPinMapping>,
+) -> Result<Json<PinMapping>, Json<ApiError>> {
+    // Check if any pins are already in use by other mappings
+    let existing: Option<PinMapping> = sqlx::query_as(
+        "SELECT id, name, red_pin, green_pin, blue_pin FROM pin_mappings
+         WHERE (red_pin = ? OR green_pin = ? OR blue_pin = ?) AND id != ?",
+    )
+    .bind(mapping.red_pin)
+    .bind(mapping.green_pin)
+    .bind(mapping.blue_pin)
+    .bind(id)
+    .fetch_optional(&mut **db)
+    .await
+    .map_err(|e| {
+        Json(ApiError {
+            message: e.to_string(),
+        })
+    })?;
+
+    if existing.is_some() {
+        return Err(Json(ApiError {
+            message: "One or more pins are already in use.".into(),
+        }));
+    }
+
+    // Update the mapping
+    sqlx::query(
+        "UPDATE pin_mappings SET name = ?, red_pin = ?, green_pin = ?, blue_pin = ? WHERE id = ?",
+    )
+    .bind(&mapping.name)
+    .bind(mapping.red_pin)
+    .bind(mapping.green_pin)
+    .bind(mapping.blue_pin)
+    .bind(id)
+    .execute(&mut **db)
+    .await
+    .map_err(|e| {
+        Json(ApiError {
+            message: e.to_string(),
+        })
+    })?;
+
+    Ok(Json(PinMapping {
+        id: Some(id),
+        name: mapping.name.clone(),
+        red_pin: mapping.red_pin,
+        green_pin: mapping.green_pin,
+        blue_pin: mapping.blue_pin,
+    }))
+}
+
 #[delete("/mappings/<id>")]
-async fn delete_mapping(mut db: Connection<AppDb>, id: i64) -> Result<Json<()>, Json<ApiError>> {
+async fn delete_mapping(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+    id: i64,
+) -> Result<Json<()>, Json<ApiError>> {
     sqlx::query("DELETE FROM pin_mappings WHERE id = ?")
         .bind(id)
         .execute(&mut **db)
@@ -93,6 +180,7 @@ async fn delete_mapping(mut db: Connection<AppDb>, id: i64) -> Result<Json<()>, 
 
 #[post("/mappings/test", data = "<mapping>")]
 async fn test_mapping(
+    _user: AuthenticatedUser,
     gpio: &State<Gpio>,
     mapping: Json<PinTestRequest>,
 ) -> Result<Json<()>, Json<ApiError>> {
@@ -147,5 +235,11 @@ async fn test_mapping(
 }
 
 pub fn routes() -> Vec<Route> {
-    routes![list_mappings, create_mapping, delete_mapping, test_mapping]
+    routes![
+        list_mappings,
+        create_mapping,
+        update_mapping,
+        delete_mapping,
+        test_mapping
+    ]
 }
