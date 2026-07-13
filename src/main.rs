@@ -12,15 +12,38 @@ use rocket::http::{Cookie, CookieJar, Status};
 use rocket::serde::Serialize;
 use rocket::serde::json::Json;
 use rocket_db_pools::{Connection, Database, sqlx};
-use rust_base_server::{AuthenticatedUser, Credentials, static_dir};
+use rocket_led::{AuthenticatedUser, Credentials, static_dir};
 
 async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
-    create_app_db_table(
+    let rocket = create_app_db_table(
         rocket,
-        "app_data",
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL",
+        "pin_mappings",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, red_pin INTEGER NOT NULL, green_pin INTEGER NOT NULL, blue_pin INTEGER NOT NULL",
     )
-    .await
+    .await?;
+
+    let rocket = create_app_db_table(
+        rocket,
+        "presets",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, pattern_kind TEXT NOT NULL, colours_json TEXT NOT NULL, interval_ms INTEGER NOT NULL",
+    )
+    .await?;
+
+    let rocket = create_app_db_table(
+        rocket,
+        "schedules",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, days_of_week_json TEXT NOT NULL, preset_id INTEGER NOT NULL REFERENCES presets(id), enabled INTEGER NOT NULL DEFAULT 1",
+    )
+    .await?;
+
+    let rocket = create_app_db_table(
+        rocket,
+        "active_state",
+        "id INTEGER PRIMARY KEY CHECK (id = 1), preset_id INTEGER REFERENCES presets(id), source TEXT NOT NULL DEFAULT 'manual'",
+    )
+    .await?;
+
+    Ok(rocket)
 }
 
 #[derive(Serialize)]
