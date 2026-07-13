@@ -2,6 +2,7 @@
 extern crate rocket;
 
 mod db;
+mod mappings;
 
 use argon2::password_hash::PasswordVerifier;
 use argon2::{Argon2, PasswordHash};
@@ -115,6 +116,7 @@ fn rocket() -> _ {
         .attach(AppDb::init())
         .attach(AdHoc::try_on_ignite("App DB Init", init_app_db))
         .mount("/api", routes![health, login, logout, protected])
+        .mount("/api", mappings::routes())
         .mount("/", FileServer::from(static_dir()).rank(10))
         .mount("/", routes![spa_fallback])
 }

@@ -4,6 +4,9 @@ use rocket_db_pools::sqlx;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// Authentication
+
+/// Path to static directory
 pub fn static_dir() -> PathBuf {
     if cfg!(debug_assertions) {
         PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/static"))
@@ -16,12 +19,14 @@ pub fn static_dir() -> PathBuf {
     }
 }
 
+/// Credentials for login
 #[derive(Deserialize)]
 pub struct Credentials {
     pub username: String,
     pub password: String,
 }
 
+/// Authenticated user
 pub struct AuthenticatedUser {
     pub username: String,
 }
@@ -110,7 +115,8 @@ pub struct LedSchedule {
     pub enabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+/// Pin mapping data
+#[derive(Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct PinMapping {
     /// Database ID
     pub id: Option<i64>,
