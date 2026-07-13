@@ -25,7 +25,8 @@ rocket_db_pools = { version = "0.2.0", features = ["sqlx_sqlite"] }
 rpassword = "7.5.4"
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
-sqlx = { version = "0.7", default-features = false, features = ["macros", "sqlite"] }
+sqlx = { version = "0.7", default-features = false, features = ["macros"] }
+rppal = "0.22.1"
 
 [profile.dist]
 inherits = "release"

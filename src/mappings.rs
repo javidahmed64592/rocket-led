@@ -1,15 +1,25 @@
 use rocket::serde::json::Json;
-use rocket::{Route, delete, get, post, routes};
+use rocket::{Route, State, delete, get, post, routes};
 use rocket_db_pools::{Connection, sqlx};
-use rocket_led::PinMapping;
+use rocket_led::{PinMapping, RgbColour};
+use rppal::gpio::Gpio;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::AppDb;
+use crate::led::LedController;
 
 /// New pin mapping data
 #[derive(Deserialize)]
 pub struct NewPinMapping {
     pub name: String,
+    pub red_pin: u8,
+    pub green_pin: u8,
+    pub blue_pin: u8,
+}
+
+#[derive(Deserialize)]
+pub struct PinTestRequest {
     pub red_pin: u8,
     pub green_pin: u8,
     pub blue_pin: u8,
@@ -81,6 +91,61 @@ async fn delete_mapping(mut db: Connection<AppDb>, id: i64) -> Result<Json<()>, 
     Ok(Json(()))
 }
 
+#[post("/mappings/test", data = "<mapping>")]
+async fn test_mapping(
+    gpio: &State<Gpio>,
+    mapping: Json<PinTestRequest>,
+) -> Result<Json<()>, Json<ApiError>> {
+    let temp_mapping = PinMapping {
+        id: None,
+        name: "test".into(),
+        red_pin: mapping.red_pin,
+        green_pin: mapping.green_pin,
+        blue_pin: mapping.blue_pin,
+    };
+
+    let gpio: &Gpio = gpio.inner();
+
+    rocket::tokio::task::spawn_blocking({
+        let gpio = gpio.clone();
+        move || -> Result<(), rppal::gpio::Error> {
+            let mut controller = LedController::new(&gpio, &temp_mapping)?;
+
+            let steps = [
+                RgbColour { r: 255, g: 0, b: 0 },
+                RgbColour { r: 0, g: 255, b: 0 },
+                RgbColour { r: 0, g: 0, b: 255 },
+                RgbColour {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                },
+            ];
+
+            for colour in steps {
+                controller.set_colour(colour)?;
+                std::thread::sleep(Duration::from_millis(500));
+            }
+
+            controller.off()?;
+            Ok(())
+        }
+    })
+    .await
+    .map_err(|e| {
+        Json(ApiError {
+            message: e.to_string(),
+        })
+    })?
+    .map_err(|e| {
+        Json(ApiError {
+            message: e.to_string(),
+        })
+    })?;
+
+    Ok(Json(()))
+}
+
 pub fn routes() -> Vec<Route> {
-    routes![list_mappings, create_mapping, delete_mapping]
+    routes![list_mappings, create_mapping, delete_mapping, test_mapping]
 }

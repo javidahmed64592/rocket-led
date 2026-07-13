@@ -2,6 +2,7 @@
 extern crate rocket;
 
 mod db;
+mod led;
 mod mappings;
 
 use argon2::password_hash::PasswordVerifier;
@@ -14,6 +15,7 @@ use rocket::serde::Serialize;
 use rocket::serde::json::Json;
 use rocket_db_pools::{Connection, Database, sqlx};
 use rocket_led::{AuthenticatedUser, Credentials, static_dir};
+use rppal::gpio::Gpio;
 
 async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
     let rocket = create_app_db_table(
@@ -111,7 +113,10 @@ async fn spa_fallback() -> Option<NamedFile> {
 fn rocket() -> _ {
     ensure_users_db_exists();
 
+    let gpio = Gpio::new().expect("failed to initialise GPIO");
+
     rocket::build()
+        .manage(gpio)
         .attach(UsersDb::init())
         .attach(AppDb::init())
         .attach(AdHoc::try_on_ignite("App DB Init", init_app_db))
