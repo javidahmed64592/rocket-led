@@ -1400,6 +1400,7 @@ dependencies = [
  "rpassword",
  "rppal",
  "serde",
+ "serde_json",
  "sqlx",
  "tokio",
 ]
