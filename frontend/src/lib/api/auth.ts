@@ -1,5 +1,3 @@
-import { apiFetch } from "./client";
-
 export async function login(
   username: string,
   password: string,
@@ -15,8 +13,4 @@ export async function login(
 
 export async function logout(): Promise<void> {
   await fetch("/api/logout", { method: "POST", credentials: "include" });
-}
-
-export async function fetchProtected(): Promise<{ message: string }> {
-  return apiFetch("/protected");
 }
