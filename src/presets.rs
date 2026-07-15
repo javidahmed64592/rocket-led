@@ -26,6 +26,13 @@ fn err(e: impl ToString) -> (Status, Json<ApiError>) {
     )
 }
 
+#[derive(Serialize)]
+pub struct ActiveStateResponse {
+    pub preset_id: Option<i64>,
+    pub preset_name: Option<String>,
+    pub source: String,
+}
+
 #[get("/presets")]
 async fn list_presets(
     _user: AuthenticatedUser,
@@ -193,12 +200,43 @@ async fn turn_off(
     Ok(Json(()))
 }
 
+#[get("/state")]
+async fn get_state(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+) -> Result<Json<ActiveStateResponse>, (Status, Json<ApiError>)> {
+    let row: Option<(Option<i64>, String)> =
+        sqlx::query_as("SELECT preset_id, source FROM active_state WHERE id = 1")
+            .fetch_optional(&mut **db)
+            .await
+            .map_err(err)?;
+
+    let (preset_id, source) = row.unwrap_or((None, "off".to_string()));
+
+    let preset_name = if let Some(pid) = preset_id {
+        sqlx::query_scalar::<_, String>("SELECT name FROM presets WHERE id = ?")
+            .bind(pid)
+            .fetch_optional(&mut **db)
+            .await
+            .map_err(err)?
+    } else {
+        None
+    };
+
+    Ok(Json(ActiveStateResponse {
+        preset_id,
+        preset_name,
+        source,
+    }))
+}
+
 pub fn routes() -> Vec<Route> {
     routes![
         list_presets,
         create_preset,
         delete_preset,
         apply_preset,
-        turn_off
+        get_state,
+        turn_off,
     ]
 }
