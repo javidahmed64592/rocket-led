@@ -1,3 +1,4 @@
+use rocket::log::private::error;
 use rocket_led::{LedPattern, LedPatternKind, PinMapping, RgbColour};
 use rppal::gpio::{Gpio, OutputPin};
 use std::time::{Duration, Instant};
@@ -30,12 +31,18 @@ impl LedController {
 
     /// Set the colour of the LED
     pub fn set_colour(&mut self, c: RgbColour) -> Result<(), rppal::gpio::Error> {
+        // Correction gains to compensate for channel brightness differences on cheap RGB LEDs.
+        // Green and blue dies are typically brighter than red at the same duty cycle, so mixed
+        // colours (e.g. orange) skew green/blue without these adjustments. Tune by eye.
+        const GREEN_GAIN: f64 = 0.3;
+        const BLUE_GAIN: f64 = 0.9;
+
         self.red
             .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.r))?;
         self.green
-            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.g))?;
+            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.g) * GREEN_GAIN)?;
         self.blue
-            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.b))?;
+            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.b) * BLUE_GAIN)?;
         Ok(())
     }
 
@@ -79,13 +86,16 @@ pub fn spawn_led_task(gpio: Gpio, pool: sqlx::SqlitePool) -> LedRuntime {
                     current = rx.borrow().clone();
                     pattern_start = Instant::now();
 
-                    // Rebuild controllers from whatever mappings exist right now
-                    controllers = rebuild_controllers(&gpio, &pool).await;
+                    // Turn old LEDs off and release their GPIO lines *before* claiming
+                    // pins for the new pattern — otherwise the new claim fails because
+                    // the old OutputPins haven't been dropped yet.
+                    for c in controllers.iter_mut() {
+                        let _ = c.off();
+                    }
+                    controllers.clear();
 
-                    if matches!(current, LedCommand::Off) {
-                        for c in controllers.iter_mut() {
-                            let _ = c.off();
-                        }
+                    if let LedCommand::ApplyPattern(_) = &current {
+                        controllers = rebuild_controllers(&gpio, &pool).await;
                     }
                 }
                 _ = ticker.tick() => {
@@ -112,7 +122,13 @@ async fn rebuild_controllers(gpio: &Gpio, pool: &sqlx::SqlitePool) -> Vec<LedCon
 
     mappings
         .iter()
-        .filter_map(|m| LedController::new(gpio, m).ok())
+        .filter_map(|m| match LedController::new(gpio, m) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                error!("failed to claim pins for mapping '{}': {}", m.name, e);
+                None
+            }
+        })
         .collect()
 }
 
