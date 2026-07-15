@@ -11,10 +11,8 @@ use db::{AppDb, UsersDb, create_app_db_table, ensure_users_db_exists};
 use led::{LedRuntime, spawn_led_task};
 use rocket::fairing::{self, AdHoc};
 use rocket::fs::{FileServer, NamedFile};
-use rocket::serde::Serialize;
-use rocket::serde::json::Json;
 use rocket_db_pools::Database;
-use rocket_led::{AuthenticatedUser, static_dir};
+use rocket_led::static_dir;
 use rppal::gpio::Gpio;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
@@ -53,21 +51,9 @@ async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
     Ok(rocket)
 }
 
-#[derive(Serialize)]
-struct Message {
-    message: String,
-}
-
 #[get("/health")]
 fn health() -> &'static str {
     "OK"
-}
-
-#[get("/protected")]
-fn protected(user: AuthenticatedUser) -> Json<Message> {
-    Json(Message {
-        message: format!("Hello, {}! This is protected data.", user.username),
-    })
 }
 
 #[get("/<_..>", rank = 20)]
@@ -99,7 +85,7 @@ fn rocket() -> _ {
                 let _ = led_cell.set(runtime);
             })
         }))
-        .mount("/api", routes![health, protected])
+        .mount("/api", routes![health])
         .mount("/api", auth::routes())
         .mount("/api", mappings::routes())
         .mount("/api", presets::routes())
