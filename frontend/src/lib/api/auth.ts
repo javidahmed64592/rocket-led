@@ -1,6 +1,8 @@
+import { apiFetch } from "./client";
+
 export async function login(
   username: string,
-  password: string
+  password: string,
 ): Promise<boolean> {
   const res = await fetch("/api/login", {
     method: "POST",
@@ -12,14 +14,9 @@ export async function login(
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/logout", {
-    method: "POST",
-    credentials: "include",
-  });
+  await fetch("/api/logout", { method: "POST", credentials: "include" });
 }
 
 export async function fetchProtected(): Promise<{ message: string }> {
-  const res = await fetch("/api/protected", { credentials: "include" });
-  if (!res.ok) throw new Error("unauthorized");
-  return res.json();
+  return apiFetch("/protected");
 }
