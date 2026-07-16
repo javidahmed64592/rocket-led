@@ -1,6 +1,6 @@
 use rocket::http::Status;
 use rocket::serde::json::Json;
-use rocket::{Route, State, delete, get, post, routes};
+use rocket::{Route, State, delete, get, patch, post, routes};
 use rocket_db_pools::{Connection, sqlx};
 use rocket_led::{AuthenticatedUser, LedPattern, LedPatternKind, LedPreset};
 use serde::Serialize;
@@ -96,6 +96,38 @@ async fn create_preset(
     }))
 }
 
+#[patch("/presets/<id>", data = "<preset>")]
+async fn update_preset(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+    id: i64,
+    preset: Json<LedPreset>,
+) -> Result<Json<LedPreset>, (Status, Json<ApiError>)> {
+    let kind_str = serde_json::to_string(&preset.pattern.kind)
+        .map_err(err)?
+        .trim_matches('"')
+        .to_string();
+    let colours_json = serde_json::to_string(&preset.pattern.colours).map_err(err)?;
+
+    sqlx::query(
+        "UPDATE presets SET name = ?, pattern_kind = ?, colours_json = ?, interval_ms = ? WHERE id = ?",
+    )
+    .bind(&preset.name)
+    .bind(&kind_str)
+    .bind(&colours_json)
+    .bind(preset.pattern.interval_ms)
+    .bind(id)
+    .execute(&mut **db)
+    .await
+    .map_err(err)?;
+
+    Ok(Json(LedPreset {
+        id: Some(id),
+        name: preset.name.clone(),
+        pattern: preset.pattern.clone(),
+    }))
+}
+
 #[delete("/presets/<id>")]
 async fn delete_preset(
     _user: AuthenticatedUser,
@@ -173,33 +205,6 @@ async fn apply_preset(
     Ok(Json(()))
 }
 
-#[post("/state/off")]
-async fn turn_off(
-    _user: AuthenticatedUser,
-    mut db: Connection<AppDb>,
-    led_cell: &State<LedRuntimeCell>,
-) -> Result<Json<()>, (Status, Json<ApiError>)> {
-    let runtime = led_cell.get().ok_or_else(|| {
-        (
-            Status::InternalServerError,
-            Json(ApiError {
-                message: "LED task not ready".into(),
-            }),
-        )
-    })?;
-    runtime.tx.send(LedCommand::Off).map_err(err)?;
-
-    sqlx::query(
-        "INSERT INTO active_state (id, preset_id, source) VALUES (1, NULL, 'off')
-         ON CONFLICT(id) DO UPDATE SET preset_id = NULL, source = 'off'",
-    )
-    .execute(&mut **db)
-    .await
-    .map_err(err)?;
-
-    Ok(Json(()))
-}
-
 #[get("/state")]
 async fn get_state(
     _user: AuthenticatedUser,
@@ -230,13 +235,56 @@ async fn get_state(
     }))
 }
 
+#[post("/state/preview", data = "<pattern>")]
+async fn preview_pattern(
+    _user: AuthenticatedUser,
+    led_cell: &State<LedRuntimeCell>,
+    pattern: Json<LedPattern>,
+) -> Result<Json<()>, (Status, Json<ApiError>)> {
+    let runtime = led_cell.get().ok_or_else(|| err("LED task not ready"))?;
+    runtime
+        .tx
+        .send(LedCommand::ApplyPattern(pattern.into_inner()))
+        .map_err(err)?;
+    Ok(Json(()))
+}
+
+#[post("/state/off")]
+async fn turn_off(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+    led_cell: &State<LedRuntimeCell>,
+) -> Result<Json<()>, (Status, Json<ApiError>)> {
+    let runtime = led_cell.get().ok_or_else(|| {
+        (
+            Status::InternalServerError,
+            Json(ApiError {
+                message: "LED task not ready".into(),
+            }),
+        )
+    })?;
+    runtime.tx.send(LedCommand::Off).map_err(err)?;
+
+    sqlx::query(
+        "INSERT INTO active_state (id, preset_id, source) VALUES (1, NULL, 'off')
+         ON CONFLICT(id) DO UPDATE SET source = 'off'",
+    )
+    .execute(&mut **db)
+    .await
+    .map_err(err)?;
+
+    Ok(Json(()))
+}
+
 pub fn routes() -> Vec<Route> {
     routes![
         list_presets,
         create_preset,
+        update_preset,
         delete_preset,
         apply_preset,
         get_state,
+        preview_pattern,
         turn_off,
     ]
 }

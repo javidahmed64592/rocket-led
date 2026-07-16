@@ -35,7 +35,7 @@ impl LedController {
         // Green and blue dies are typically brighter than red at the same duty cycle, so mixed
         // colours (e.g. orange) skew green/blue without these adjustments. Tune by eye.
         const GREEN_GAIN: f64 = 0.3;
-        const BLUE_GAIN: f64 = 0.9;
+        const BLUE_GAIN: f64 = 1.0;
 
         self.red
             .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.r))?;
