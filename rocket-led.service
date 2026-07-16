@@ -1,0 +1,15 @@
+[Unit]
+Description=Rocket LED controller
+After=network.target
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{INSTALL_DIR}}
+ExecStart={{INSTALL_DIR}}/rocket-led
+Restart=on-failure
+RestartSec=5s
+Environment=ROCKET_ENV=production
+
+[Install]
+WantedBy=multi-user.target
