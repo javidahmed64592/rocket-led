@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HexColorPicker } from "react-colorful";
+
 import type { RgbColour } from "../types";
 
 function rgbToHex({ r, g, b }: RgbColour): string {
@@ -27,7 +28,11 @@ type Props = {
   maxColours?: number;
 };
 
-export default function ColourSwatchList({ colours, onChange, maxColours }: Props) {
+export default function ColourSwatchList({
+  colours,
+  onChange,
+  maxColours,
+}: Props) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   function updateColour(index: number, hex: string) {

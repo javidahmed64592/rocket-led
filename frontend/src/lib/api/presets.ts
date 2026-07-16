@@ -1,5 +1,5 @@
-import { apiFetch } from "./client";
 import type { ActiveState, LedPattern, LedPreset } from "../types";
+import { apiFetch } from "./client";
 
 export const listPresets = () => apiFetch<LedPreset[]>("/presets");
 

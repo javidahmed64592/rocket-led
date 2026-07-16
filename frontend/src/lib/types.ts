@@ -1,12 +1,7 @@
 export type RgbColour = { r: number; g: number; b: number };
 
 export type LedPatternKind =
-  | "off"
-  | "solid"
-  | "pulse"
-  | "blink"
-  | "gradient"
-  | "rainbow";
+  "off" | "solid" | "pulse" | "blink" | "gradient" | "rainbow";
 
 export type LedPattern = {
   kind: LedPatternKind;

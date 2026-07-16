@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import ColourSwatchList from "@/lib/components/ColourSwatchList";
 import {
   applyPreset,
   createPreset,
@@ -14,7 +13,13 @@ import {
   turnOff,
   updatePreset,
 } from "@/lib/api";
-import type { LedPattern, LedPatternKind, LedPreset, RgbColour } from "@/lib/types";
+import ColourSwatchList from "@/lib/components/ColourSwatchList";
+import type {
+  LedPattern,
+  LedPatternKind,
+  LedPreset,
+  RgbColour,
+} from "@/lib/types";
 
 const PATTERN_KINDS: Exclude<LedPatternKind, "off">[] = [
   "solid",
@@ -38,7 +43,8 @@ const defaultForm: FormState = {
   interval_ms: 1000,
 };
 
-type FormMode = { mode: "none" } | { mode: "create" } | { mode: "edit"; preset: LedPreset };
+type FormMode =
+  { mode: "none" } | { mode: "create" } | { mode: "edit"; preset: LedPreset };
 
 function patternToForm(preset: LedPreset): FormState {
   return {
@@ -115,8 +121,13 @@ export default function Home() {
     },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, preset }: { id: number; preset: Omit<LedPreset, "id"> }) =>
-      updatePreset(id, preset),
+    mutationFn: ({
+      id,
+      preset,
+    }: {
+      id: number;
+      preset: Omit<LedPreset, "id">;
+    }) => updatePreset(id, preset),
     onSuccess: (result, variables) => {
       qc.invalidateQueries({ queryKey: ["presets"] });
       setFormMode({ mode: "none" });
@@ -127,8 +138,13 @@ export default function Home() {
     },
   });
   const saveDraftMutation = useMutation({
-    mutationFn: ({ id, preset }: { id: number; preset: Omit<LedPreset, "id"> }) =>
-      updatePreset(id, preset),
+    mutationFn: ({
+      id,
+      preset,
+    }: {
+      id: number;
+      preset: Omit<LedPreset, "id">;
+    }) => updatePreset(id, preset),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["presets"] }),
   });
   const previewMutation = useMutation({ mutationFn: previewPattern });
@@ -155,7 +171,8 @@ export default function Home() {
   const isDirty =
     draftColours != null &&
     activePreset != null &&
-    JSON.stringify(draftColours) !== JSON.stringify(activePreset.pattern.colours);
+    JSON.stringify(draftColours) !==
+      JSON.stringify(activePreset.pattern.colours);
 
   // Reset draft when the active preset changes (different preset_id)
   useEffect(() => {
@@ -163,7 +180,7 @@ export default function Home() {
       lastLoadedPresetIdRef.current = state?.preset_id ?? null;
       setDraftColours(activePreset?.pattern.colours ?? null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.preset_id]);
 
   // Cleanup debounce timer on unmount
@@ -281,7 +298,9 @@ export default function Home() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span className={`dashboard-status-dot${isOn ? " on" : ""}`} />
-            <strong style={{ fontSize: "13px", color: "var(--dash-text-muted)" }}>
+            <strong
+              style={{ fontSize: "13px", color: "var(--dash-text-muted)" }}
+            >
               {isOn ? "Active" : "Off"}
             </strong>
           </div>
@@ -414,8 +433,7 @@ export default function Home() {
             {form.kind !== "rainbow" &&
               presets &&
               presets.filter(
-                (p) =>
-                  formMode.mode !== "edit" || p.id !== formMode.preset.id
+                (p) => formMode.mode !== "edit" || p.id !== formMode.preset.id
               ).length > 0 && (
                 <div style={{ marginBottom: "16px" }}>
                   <label
@@ -504,8 +522,8 @@ export default function Home() {
                 {isMutating
                   ? "Saving…"
                   : formMode.mode === "edit"
-                  ? "Update Preset"
-                  : "Save Preset"}
+                    ? "Update Preset"
+                    : "Save Preset"}
               </button>
               <button
                 type="button"
@@ -554,7 +572,11 @@ export default function Home() {
               <div
                 key={preset.id}
                 className={`dashboard-card${active ? " active-preset" : ""}`}
-                style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
               >
                 <PatternPreview pattern={preset.pattern} />
                 <strong style={{ fontSize: "14px" }}>{preset.name}</strong>

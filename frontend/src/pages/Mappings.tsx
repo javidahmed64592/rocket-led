@@ -259,8 +259,8 @@ export default function Mappings() {
             {createMutation.isPending || updateMutation.isPending
               ? "Saving…"
               : formMode.mode === "edit"
-              ? "Update Mapping"
-              : "Save Mapping"}
+                ? "Update Mapping"
+                : "Save Mapping"}
           </button>
         </div>
       </section>
