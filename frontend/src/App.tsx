@@ -5,7 +5,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Mappings from "./pages/Mappings";
-import Presets from "./pages/Presets";
 
 export default function App() {
   return (
@@ -15,7 +14,6 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/home" element={<Home />} />
         <Route path="/mappings" element={<Mappings />} />
-        <Route path="/presets" element={<Presets />} />
       </Routes>
     </BrowserRouter>
   );

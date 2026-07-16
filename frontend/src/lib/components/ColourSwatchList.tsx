@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { HexColorPicker } from "react-colorful";
 import type { RgbColour } from "../types";
 
@@ -22,12 +23,15 @@ function hexToRgb(hex: string): RgbColour {
 type Props = {
   colours: RgbColour[];
   onChange: (colours: RgbColour[]) => void;
+  /** Cap the list length — pass 1 for "solid" patterns. Omit for no cap. */
+  maxColours?: number;
 };
 
-export default function ColourSwatchList({ colours, onChange }: Props) {
+export default function ColourSwatchList({ colours, onChange, maxColours }: Props) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
   function updateColour(index: number, hex: string) {
-    const next = colours.map((c, i) => (i === index ? hexToRgb(hex) : c));
-    onChange(next);
+    onChange(colours.map((c, i) => (i === index ? hexToRgb(hex) : c)));
   }
 
   function addColour() {
@@ -36,7 +40,10 @@ export default function ColourSwatchList({ colours, onChange }: Props) {
 
   function removeColour(index: number) {
     onChange(colours.filter((_, i) => i !== index));
+    setOpenIndex(null);
   }
+
+  const canAdd = maxColours === undefined || colours.length < maxColours;
 
   return (
     <div className="swatch-list">
@@ -44,36 +51,69 @@ export default function ColourSwatchList({ colours, onChange }: Props) {
         <SwatchItem
           key={i}
           colour={colour}
+          isOpen={openIndex === i}
+          onToggle={() => setOpenIndex(openIndex === i ? null : i)}
+          onClose={() => setOpenIndex(null)}
           onChange={(hex) => updateColour(i, hex)}
           onRemove={() => removeColour(i)}
           canRemove={colours.length > 1}
         />
       ))}
-      <button type="button" className="swatch-add" onClick={addColour}>
-        +
-      </button>
+      {canAdd && (
+        <button type="button" className="swatch-add" onClick={addColour}>
+          +
+        </button>
+      )}
     </div>
   );
 }
 
 type SwatchItemProps = {
   colour: RgbColour;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
   onChange: (hex: string) => void;
   onRemove: () => void;
   canRemove: boolean;
 };
 
-function SwatchItem({ colour, onChange, onRemove, canRemove }: SwatchItemProps) {
+function SwatchItem({
+  colour,
+  isOpen,
+  onToggle,
+  onClose,
+  onChange,
+  onRemove,
+  canRemove,
+}: SwatchItemProps) {
   const hex = rgbToHex(colour);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen, onClose]);
 
   return (
-    <div className="swatch-item">
-      <div
+    <div className="swatch-item" ref={ref}>
+      <button
+        type="button"
         className="swatch-preview"
         style={{ background: hex }}
         title={hex}
+        onClick={onToggle}
+        aria-label={`Edit colour ${hex}`}
       />
-      <HexColorPicker color={hex} onChange={onChange} />
+      {isOpen && (
+        <div className="swatch-popover">
+          <HexColorPicker color={hex} onChange={onChange} />
+        </div>
+      )}
       {canRemove && (
         <button
           type="button"

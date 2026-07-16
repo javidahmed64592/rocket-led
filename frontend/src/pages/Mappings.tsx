@@ -82,7 +82,6 @@ export default function Mappings() {
         <h1 style={{ margin: 0, fontSize: "28px" }}>Pin Mappings</h1>
         <nav style={{ display: "flex", gap: "16px", alignItems: "center" }}>
           <Link to="/home" className="nav-link">Dashboard</Link>
-          <Link to="/presets" className="nav-link">Presets</Link>
         </nav>
       </header>
 
