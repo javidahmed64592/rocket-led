@@ -9,15 +9,21 @@ export const createMapping = (mapping: Omit<PinMapping, "id">) =>
     body: JSON.stringify(mapping),
   });
 
+export const updateMapping = (id: number, mapping: Omit<PinMapping, "id">) =>
+  apiFetch<PinMapping>(`/mappings/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(mapping),
+  });
+
 export const deleteMapping = (id: number) =>
   apiFetch<void>(`/mappings/${id}`, { method: "DELETE" });
 
-export const testMapping = (pins: {
-  red_pin: number;
-  green_pin: number;
-  blue_pin: number;
-}) =>
+type TestRequest =
+  | { id: number }
+  | { red_pin: number; green_pin: number; blue_pin: number };
+
+export const testMapping = (request: TestRequest) =>
   apiFetch<void>("/mappings/test", {
     method: "POST",
-    body: JSON.stringify(pins),
+    body: JSON.stringify(request),
   });

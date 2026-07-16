@@ -8,11 +8,11 @@ mod mappings;
 mod presets;
 
 use db::{AppDb, UsersDb, create_app_db_table, ensure_users_db_exists};
-use led::{LedRuntime, spawn_led_task};
+use led::{LedCommand, LedRuntime, spawn_led_task};
 use rocket::fairing::{self, AdHoc};
 use rocket::fs::{FileServer, NamedFile};
-use rocket_db_pools::Database;
-use rocket_led::static_dir;
+use rocket_db_pools::{Database, sqlx};
+use rocket_led::{LedPattern, LedPatternKind, static_dir};
 use rppal::gpio::Gpio;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
@@ -81,7 +81,40 @@ fn rocket() -> _ {
             Box::pin(async move {
                 let pool = (**AppDb::fetch(rocket).expect("AppDb not attached")).clone();
                 let gpio = Gpio::new().expect("failed to initialise GPIO for LED task");
-                let runtime = spawn_led_task(gpio, pool);
+                let runtime = spawn_led_task(gpio, pool.clone());
+
+                // Restore the last active state so the LED reflects reality on reboot
+                if let Ok(Some((Some(preset_id), source))) =
+                    sqlx::query_as::<_, (Option<i64>, String)>(
+                        "SELECT preset_id, source FROM active_state WHERE id = 1",
+                    )
+                    .fetch_optional(&pool)
+                    .await
+                {
+                    if source != "off" {
+                        if let Ok(Some((kind_str, colours_json, interval_ms))) =
+                            sqlx::query_as::<_, (String, String, u32)>(
+                                "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
+                            )
+                            .bind(preset_id)
+                            .fetch_optional(&pool)
+                            .await
+                        {
+                            if let Ok(kind) = serde_json::from_str::<LedPatternKind>(
+                                &format!("\"{kind_str}\""),
+                            ) {
+                                let colours =
+                                    serde_json::from_str(&colours_json).unwrap_or_default();
+                                let _ = runtime.tx.send(LedCommand::ApplyPattern(LedPattern {
+                                    kind,
+                                    colours,
+                                    interval_ms,
+                                }));
+                            }
+                        }
+                    }
+                }
+
                 let _ = led_cell.set(runtime);
             })
         }))
