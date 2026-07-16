@@ -91,29 +91,25 @@ fn rocket() -> _ {
                     )
                     .fetch_optional(&pool)
                     .await
+                    && source != "off"
+                    && let Ok(Some((kind_str, colours_json, interval_ms))) = sqlx::query_as::<
+                        _,
+                        (String, String, u32),
+                    >(
+                        "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
+                    )
+                    .bind(preset_id)
+                    .fetch_optional(&pool)
+                    .await
+                    && let Ok(kind) =
+                        serde_json::from_str::<LedPatternKind>(&format!("\"{kind_str}\""))
                 {
-                    if source != "off" {
-                        if let Ok(Some((kind_str, colours_json, interval_ms))) =
-                            sqlx::query_as::<_, (String, String, u32)>(
-                                "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
-                            )
-                            .bind(preset_id)
-                            .fetch_optional(&pool)
-                            .await
-                        {
-                            if let Ok(kind) = serde_json::from_str::<LedPatternKind>(
-                                &format!("\"{kind_str}\""),
-                            ) {
-                                let colours =
-                                    serde_json::from_str(&colours_json).unwrap_or_default();
-                                let _ = runtime.tx.send(LedCommand::ApplyPattern(LedPattern {
-                                    kind,
-                                    colours,
-                                    interval_ms,
-                                }));
-                            }
-                        }
-                    }
+                    let colours = serde_json::from_str(&colours_json).unwrap_or_default();
+                    let _ = runtime.tx.send(LedCommand::ApplyPattern(LedPattern {
+                        kind,
+                        colours,
+                        interval_ms,
+                    }));
                 }
 
                 let _ = led_cell.set(runtime);

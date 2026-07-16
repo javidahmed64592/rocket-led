@@ -18,9 +18,9 @@ impl LedController {
     /// Create a new LED controller from a GPIO instance and a pin mapping
     pub fn new(gpio: &Gpio, mapping: &PinMapping) -> Result<Self, rppal::gpio::Error> {
         Ok(Self {
-            red: gpio.get(mapping.red_pin as u8)?.into_output(),
-            green: gpio.get(mapping.green_pin as u8)?.into_output(),
-            blue: gpio.get(mapping.blue_pin as u8)?.into_output(),
+            red: gpio.get(mapping.red_pin)?.into_output(),
+            green: gpio.get(mapping.green_pin)?.into_output(),
+            blue: gpio.get(mapping.blue_pin)?.into_output(),
         })
     }
 

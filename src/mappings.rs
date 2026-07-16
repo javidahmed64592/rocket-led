@@ -265,29 +265,28 @@ async fn test_mapping(
     .map_err(err)?;
 
     // Resume the previous pattern if we suspended it
-    if let (Some(rt), Some((Some(preset_id), source))) = (runtime, previous) {
-        if source != "off" {
-            let row: Option<(String, String, u32)> = sqlx::query_as(
-                "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
-            )
-            .bind(preset_id)
-            .fetch_optional(&mut **db)
-            .await
-            .map_err(err)?;
+    if let (Some(rt), Some((Some(preset_id), source))) = (runtime, previous)
+        && source != "off"
+    {
+        let row: Option<(String, String, u32)> = sqlx::query_as(
+            "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
+        )
+        .bind(preset_id)
+        .fetch_optional(&mut **db)
+        .await
+        .map_err(err)?;
 
-            if let Some((kind_str, colours_json, interval_ms)) = row {
-                if let Ok(kind) = serde_json::from_str::<LedPatternKind>(&format!("\"{kind_str}\""))
-                {
-                    let colours = serde_json::from_str(&colours_json).unwrap_or_default();
-                    rt.tx
-                        .send(LedCommand::ApplyPattern(LedPattern {
-                            kind,
-                            colours,
-                            interval_ms,
-                        }))
-                        .map_err(err)?;
-                }
-            }
+        if let Some((kind_str, colours_json, interval_ms)) = row
+            && let Ok(kind) = serde_json::from_str::<LedPatternKind>(&format!("\"{kind_str}\""))
+        {
+            let colours = serde_json::from_str(&colours_json).unwrap_or_default();
+            rt.tx
+                .send(LedCommand::ApplyPattern(LedPattern {
+                    kind,
+                    colours,
+                    interval_ms,
+                }))
+                .map_err(err)?;
         }
     }
 
