@@ -7,6 +7,7 @@ repository = "https://github.com/javidahmed64592/rocket-led"
 homepage = "https://github.com/javidahmed64592/rocket-led"
 license = "MIT"
 authors = ["Javid Ahmed <javidahmed@icloud.com>"]
+include = ["Rocket.toml"]
 
 [package.metadata.wix]
 upgrade-guid = "5C25D2FE-94E1-4BD1-9DD5-4BA37A737700"
@@ -28,6 +29,7 @@ tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.7", default-features = false, features = ["macros"] }
 rppal = "0.22.1"
 serde_json = "1.0.150"
+dotenvy = "0.15.7"
 
 [profile.dist]
 inherits = "release"

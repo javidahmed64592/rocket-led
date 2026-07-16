@@ -63,6 +63,7 @@ async fn spa_fallback() -> Option<NamedFile> {
 
 #[launch]
 fn rocket() -> _ {
+    dotenvy::dotenv().ok();
     ensure_users_db_exists();
 
     let led_cell: LedRuntimeCell = Arc::new(OnceCell::new());

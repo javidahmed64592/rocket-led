@@ -1395,6 +1395,7 @@ name = "rocket-led"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "dotenvy",
  "rocket",
  "rocket_db_pools",
  "rpassword",
