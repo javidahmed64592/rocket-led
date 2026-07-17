@@ -1,17 +1,21 @@
 import react from "@vitejs/plugin-react";
+import path from "path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   build: {
     outDir: "../static",
     emptyOutDir: true,
   },
   server: {
     proxy: {
-      "/login": "http://localhost:8000",
-      "/logout": "http://localhost:8000",
-      "/protected": "http://localhost:8000",
+      "/api": "http://localhost:8000",
     },
   },
 });

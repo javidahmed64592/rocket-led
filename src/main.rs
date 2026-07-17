@@ -1,81 +1,59 @@
 #[macro_use]
 extern crate rocket;
 
+mod auth;
 mod db;
+mod led;
+mod mappings;
+mod presets;
 
-use argon2::password_hash::PasswordVerifier;
-use argon2::{Argon2, PasswordHash};
 use db::{AppDb, UsersDb, create_app_db_table, ensure_users_db_exists};
+use led::{LedCommand, LedRuntime, spawn_led_task};
 use rocket::fairing::{self, AdHoc};
 use rocket::fs::{FileServer, NamedFile};
-use rocket::http::{Cookie, CookieJar, Status};
-use rocket::serde::Serialize;
-use rocket::serde::json::Json;
-use rocket_db_pools::{Connection, Database, sqlx};
-use rust_base_server::{AuthenticatedUser, Credentials, static_dir};
+use rocket_db_pools::{Database, sqlx};
+use rocket_led::{LedPattern, LedPatternKind, static_dir};
+use rppal::gpio::Gpio;
+use std::sync::Arc;
+use tokio::sync::OnceCell;
+
+type LedRuntimeCell = Arc<OnceCell<LedRuntime>>;
 
 async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
-    create_app_db_table(
+    let rocket = create_app_db_table(
         rocket,
-        "app_data",
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL",
+        "pin_mappings",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, red_pin INTEGER NOT NULL, green_pin INTEGER NOT NULL, blue_pin INTEGER NOT NULL",
     )
-    .await
-}
+    .await?;
 
-#[derive(Serialize)]
-struct Message {
-    message: String,
+    let rocket = create_app_db_table(
+        rocket,
+        "presets",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, pattern_kind TEXT NOT NULL, colours_json TEXT NOT NULL, interval_ms INTEGER NOT NULL",
+    )
+    .await?;
+
+    let rocket = create_app_db_table(
+        rocket,
+        "schedules",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, days_of_week_json TEXT NOT NULL, preset_id INTEGER NOT NULL REFERENCES presets(id), enabled INTEGER NOT NULL DEFAULT 1",
+    )
+    .await?;
+
+    let rocket = create_app_db_table(
+        rocket,
+        "active_state",
+        "id INTEGER PRIMARY KEY CHECK (id = 1), preset_id INTEGER REFERENCES presets(id), source TEXT NOT NULL DEFAULT 'manual'",
+    )
+    .await?;
+
+    Ok(rocket)
 }
 
 #[get("/health")]
 fn health() -> &'static str {
     "OK"
-}
-
-#[post("/login", data = "<creds>")]
-async fn login(
-    creds: Json<Credentials>,
-    mut db: Connection<UsersDb>,
-    cookies: &CookieJar<'_>,
-) -> Status {
-    let row: Option<(String, String)> =
-        sqlx::query_as("SELECT username, password_hash FROM users WHERE username = ?")
-            .bind(&creds.username)
-            .fetch_optional(&mut **db)
-            .await
-            .unwrap_or(None);
-
-    let (username, password_hash) = match row {
-        Some(row) => row,
-        None => return Status::Unauthorized,
-    };
-
-    let parsed_hash = match PasswordHash::new(&password_hash) {
-        Ok(hash) => hash,
-        Err(_) => return Status::InternalServerError,
-    };
-
-    match Argon2::default().verify_password(creds.password.as_bytes(), &parsed_hash) {
-        Ok(()) => {
-            cookies.add_private(Cookie::new("session", username));
-            Status::Ok
-        }
-        Err(_) => Status::Unauthorized,
-    }
-}
-
-#[post("/logout")]
-fn logout(cookies: &CookieJar<'_>) -> Status {
-    cookies.remove_private("session");
-    Status::Ok
-}
-
-#[get("/protected")]
-fn protected(user: AuthenticatedUser) -> Json<Message> {
-    Json(Message {
-        message: format!("Hello, {}! This is protected data.", user.username),
-    })
 }
 
 #[get("/<_..>", rank = 20)]
@@ -85,13 +63,62 @@ async fn spa_fallback() -> Option<NamedFile> {
 
 #[launch]
 fn rocket() -> _ {
+    dotenvy::dotenv().ok();
     ensure_users_db_exists();
 
+    let led_cell: LedRuntimeCell = Arc::new(OnceCell::new());
+    let led_cell_for_liftoff = led_cell.clone();
+
+    let gpio = Gpio::new().expect("failed to initialise GPIO");
+
     rocket::build()
+        .manage(gpio)
+        .manage(led_cell)
         .attach(UsersDb::init())
         .attach(AppDb::init())
         .attach(AdHoc::try_on_ignite("App DB Init", init_app_db))
-        .mount("/api", routes![health, login, logout, protected])
+        .attach(AdHoc::on_liftoff("LED Task", move |rocket| {
+            let led_cell = led_cell_for_liftoff.clone();
+            Box::pin(async move {
+                let pool = (**AppDb::fetch(rocket).expect("AppDb not attached")).clone();
+                let gpio = Gpio::new().expect("failed to initialise GPIO for LED task");
+                let runtime = spawn_led_task(gpio, pool.clone());
+
+                // Restore the last active state so the LED reflects reality on reboot
+                if let Ok(Some((Some(preset_id), source))) =
+                    sqlx::query_as::<_, (Option<i64>, String)>(
+                        "SELECT preset_id, source FROM active_state WHERE id = 1",
+                    )
+                    .fetch_optional(&pool)
+                    .await
+                    && source != "off"
+                    && let Ok(Some((kind_str, colours_json, interval_ms))) = sqlx::query_as::<
+                        _,
+                        (String, String, u32),
+                    >(
+                        "SELECT pattern_kind, colours_json, interval_ms FROM presets WHERE id = ?",
+                    )
+                    .bind(preset_id)
+                    .fetch_optional(&pool)
+                    .await
+                    && let Ok(kind) =
+                        serde_json::from_str::<LedPatternKind>(&format!("\"{kind_str}\""))
+                {
+                    let colours = serde_json::from_str(&colours_json).unwrap_or_default();
+                    let _ = runtime.tx.send(LedCommand::ApplyPattern(LedPattern {
+                        kind,
+                        colours,
+                        interval_ms,
+                    }));
+                }
+
+                let _ = led_cell.set(runtime);
+            })
+        }))
+        .mount("/api", routes![health])
+        .mount("/api", auth::routes())
+        .mount("/api", mappings::routes())
+        .mount("/api", presets::routes())
         .mount("/", FileServer::from(static_dir()).rank(10))
         .mount("/", routes![spa_fallback])
 }
