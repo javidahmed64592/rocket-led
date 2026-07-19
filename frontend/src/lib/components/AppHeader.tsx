@@ -17,7 +17,7 @@ export default function AppHeader() {
           <span className="app-header-logo" aria-hidden="true">
             🚀
           </span>
-          <span className="app-header-name">rocket-led</span>
+          <span className="app-header-name">Rocket LED</span>
         </div>
         <nav className="app-header-nav">
           <NavLink
