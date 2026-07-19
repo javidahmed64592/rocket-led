@@ -9,6 +9,7 @@ import {
   testMapping,
   updateMapping,
 } from "@/lib/api";
+import PageHeader from "@/lib/components/PageHeader";
 import type { PinMapping } from "@/lib/types";
 
 type FormState = {
@@ -143,21 +144,11 @@ export default function Mappings() {
 
   return (
     <div className="dashboard-page" style={{ padding: "32px" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "32px",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "28px" }}>Pin Mappings</h1>
-        <nav style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <Link to="/home" className="nav-link">
-            Dashboard
-          </Link>
-        </nav>
-      </header>
+      <PageHeader title="Pin Mappings">
+        <Link to="/home" className="nav-link">
+          Dashboard
+        </Link>
+      </PageHeader>
 
       {/* Add / Edit form */}
       <section
