@@ -221,6 +221,56 @@
   color: var(--dash-text);
 }
 
+/* ---- App header ---- */
+.app-header {
+  background: var(--dash-surface);
+  border-bottom: 1px solid var(--dash-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.app-header-inner {
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-header-logo {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.app-header-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dash-text);
+  letter-spacing: -0.01em;
+}
+
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav-link--active {
+  color: var(--dash-text);
+}
+
+/* ---- App layout ---- */
+.app-content {
+  padding: 32px 24px;
+}
+
 /* ---- Login page ---- */
 .login-page {
   min-height: 100vh;
@@ -328,8 +378,7 @@
     z-index: 1;
     top: 34px;
     height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg) scale(1.4);
   }
 
   .vite {
@@ -337,8 +386,7 @@
     top: 107px;
     height: 26px;
     width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg) scale(0.8);
   }
 }
 
@@ -361,7 +409,7 @@
   border-top: 1px solid var(--border);
   text-align: left;
 
-  & > div {
+  &>div {
     flex: 1 1 0;
     padding: 32px;
 

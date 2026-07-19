@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 
 import {
   createMapping,
@@ -9,7 +8,6 @@ import {
   testMapping,
   updateMapping,
 } from "@/lib/api";
-import PageHeader from "@/lib/components/PageHeader";
 import type { PinMapping } from "@/lib/types";
 
 type FormState = {
@@ -143,12 +141,8 @@ export default function Mappings() {
     !updateMutation.isPending;
 
   return (
-    <div className="dashboard-page" style={{ padding: "32px" }}>
-      <PageHeader title="Pin Mappings">
-        <Link to="/home" className="nav-link">
-          Dashboard
-        </Link>
-      </PageHeader>
+    <>
+      <h1 style={{ margin: "0 0 32px" }}>Pin Mappings</h1>
 
       {/* Add / Edit form */}
       <section
@@ -315,6 +309,6 @@ export default function Mappings() {
           </tbody>
         </table>
       )}
-    </div>
+    </>
   );
 }

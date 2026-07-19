@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 
 import {
   applyPreset,
@@ -8,14 +7,12 @@ import {
   deletePreset,
   getState,
   listPresets,
-  logout,
   previewPattern,
   setBrightness,
   turnOff,
   updatePreset,
 } from "@/lib/api";
 import ActiveStateCard from "@/lib/components/ActiveStateCard";
-import PageHeader from "@/lib/components/PageHeader";
 import PresetCard from "@/lib/components/PresetCard";
 import PresetForm, {
   defaultForm,
@@ -26,7 +23,6 @@ import PresetForm, {
 import type { LedPreset, RgbColour } from "@/lib/types";
 
 export default function Home() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   // Queries
@@ -139,11 +135,6 @@ export default function Home() {
   }, []);
 
   // Handlers
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
   function handleKindChange(kind: FormState["kind"]) {
     setForm((f) => ({
       ...f,
@@ -225,16 +216,7 @@ export default function Home() {
   const formError = createMutation.error ?? updateMutation.error ?? null;
 
   return (
-    <div className="dashboard-page" style={{ padding: "32px" }}>
-      <PageHeader title="rocket-led">
-        <Link to="/mappings" className="nav-link">
-          Mappings
-        </Link>
-        <button className="dashboard-btn" onClick={handleLogout}>
-          Log out
-        </button>
-      </PageHeader>
-
+    <>
       {/* Active-state card */}
       <div style={{ marginBottom: "32px" }}>
         <ActiveStateCard
@@ -324,6 +306,6 @@ export default function Home() {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
