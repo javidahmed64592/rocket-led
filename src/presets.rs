@@ -3,7 +3,7 @@ use rocket::serde::json::Json;
 use rocket::{Route, State, delete, get, patch, post, routes};
 use rocket_db_pools::{Connection, sqlx};
 use rocket_led::{AuthenticatedUser, LedPattern, LedPatternKind, LedPreset};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -31,6 +31,7 @@ pub struct ActiveStateResponse {
     pub preset_id: Option<i64>,
     pub preset_name: Option<String>,
     pub source: String,
+    pub brightness: f64,
 }
 
 #[get("/presets")]
@@ -210,13 +211,14 @@ async fn get_state(
     _user: AuthenticatedUser,
     mut db: Connection<AppDb>,
 ) -> Result<Json<ActiveStateResponse>, (Status, Json<ApiError>)> {
-    let row: Option<(Option<i64>, String)> =
-        sqlx::query_as("SELECT preset_id, source FROM active_state WHERE id = 1")
-            .fetch_optional(&mut **db)
-            .await
-            .map_err(err)?;
+    let row: Option<(Option<i64>, String, f64)> = sqlx::query_as(
+        "SELECT preset_id, source, COALESCE(brightness, 1.0) FROM active_state WHERE id = 1",
+    )
+    .fetch_optional(&mut **db)
+    .await
+    .map_err(err)?;
 
-    let (preset_id, source) = row.unwrap_or((None, "off".to_string()));
+    let (preset_id, source, brightness) = row.unwrap_or((None, "off".to_string(), 1.0));
 
     let preset_name = if let Some(pid) = preset_id {
         sqlx::query_scalar::<_, String>("SELECT name FROM presets WHERE id = ?")
@@ -232,12 +234,14 @@ async fn get_state(
         preset_id,
         preset_name,
         source,
+        brightness,
     }))
 }
 
 #[post("/state/preview", data = "<pattern>")]
 async fn preview_pattern(
     _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
     led_cell: &State<LedRuntimeCell>,
     pattern: Json<LedPattern>,
 ) -> Result<Json<()>, (Status, Json<ApiError>)> {
@@ -246,6 +250,40 @@ async fn preview_pattern(
         .tx
         .send(LedCommand::ApplyPattern(pattern.into_inner()))
         .map_err(err)?;
+    // If the LEDs were "off", mark them as on now that we're previewing
+    sqlx::query("UPDATE active_state SET source = 'manual' WHERE id = 1 AND source = 'off'")
+        .execute(&mut **db)
+        .await
+        .map_err(err)?;
+    Ok(Json(()))
+}
+
+#[derive(Deserialize)]
+struct BrightnessBody {
+    brightness: f64,
+}
+
+#[patch("/state/brightness", data = "<body>")]
+async fn set_brightness(
+    _user: AuthenticatedUser,
+    mut db: Connection<AppDb>,
+    led_cell: &State<LedRuntimeCell>,
+    body: Json<BrightnessBody>,
+) -> Result<Json<()>, (Status, Json<ApiError>)> {
+    let brightness = body.brightness.clamp(0.0, 1.0);
+    let runtime = led_cell.get().ok_or_else(|| err("LED task not ready"))?;
+    runtime
+        .tx
+        .send(LedCommand::SetBrightness(brightness))
+        .map_err(err)?;
+    sqlx::query(
+        "INSERT INTO active_state (id, brightness) VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET brightness = excluded.brightness",
+    )
+    .bind(brightness)
+    .execute(&mut **db)
+    .await
+    .map_err(err)?;
     Ok(Json(()))
 }
 
@@ -286,5 +324,6 @@ pub fn routes() -> Vec<Route> {
         get_state,
         preview_pattern,
         turn_off,
+        set_brightness,
     ]
 }

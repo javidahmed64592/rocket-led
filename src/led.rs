@@ -53,6 +53,8 @@ pub enum LedCommand {
     Off,
     /// Apply a pattern to all LEDs
     ApplyPattern(LedPattern),
+    /// Set brightness multiplier (0.0–1.0)
+    SetBrightness(f64),
 }
 
 /// Handle stored in Rocket managed state; HTTP handlers use this to talk to the task.
@@ -63,7 +65,7 @@ pub struct LedRuntime {
 
 /// Spawned once at launch. `pool` is a plain sqlx pool (not a request-scoped Connection),
 /// since this task outlives any single request.
-pub fn spawn_led_task(gpio: Gpio, pool: sqlx::SqlitePool) -> LedRuntime {
+pub fn spawn_led_task(gpio: Gpio, pool: sqlx::SqlitePool, initial_brightness: f64) -> LedRuntime {
     let (tx, mut rx) = watch::channel(LedCommand::Off);
     let runtime = LedRuntime { tx };
 
@@ -71,30 +73,40 @@ pub fn spawn_led_task(gpio: Gpio, pool: sqlx::SqlitePool) -> LedRuntime {
         let mut controllers: Vec<LedController> = Vec::new();
         let mut current = LedCommand::Off;
         let mut pattern_start = Instant::now();
+        let mut brightness: f64 = initial_brightness.clamp(0.0, 1.0);
         let mut ticker = tokio::time::interval(Duration::from_millis(20));
 
         loop {
             tokio::select! {
                 changed = rx.changed() => {
                     if changed.is_err() { break; } // sender dropped, shut down
-                    current = rx.borrow().clone();
-                    pattern_start = Instant::now();
+                    let cmd = rx.borrow().clone();
+                    match cmd {
+                        LedCommand::SetBrightness(b) => {
+                            brightness = b.clamp(0.0, 1.0);
+                        }
+                        other => {
+                            current = other;
+                            pattern_start = Instant::now();
 
-                    // Turn old LEDs off and release their GPIO lines *before* claiming
-                    // pins for the new pattern — otherwise the new claim fails because
-                    // the old OutputPins haven't been dropped yet.
-                    for c in controllers.iter_mut() {
-                        let _ = c.off();
-                    }
-                    controllers.clear();
+                            // Turn old LEDs off and release their GPIO lines *before* claiming
+                            // pins for the new pattern — otherwise the new claim fails because
+                            // the old OutputPins haven't been dropped yet.
+                            for c in controllers.iter_mut() {
+                                let _ = c.off();
+                            }
+                            controllers.clear();
 
-                    if let LedCommand::ApplyPattern(_) = &current {
-                        controllers = rebuild_controllers(&gpio, &pool).await;
+                            if let LedCommand::ApplyPattern(_) = &current {
+                                controllers = rebuild_controllers(&gpio, &pool).await;
+                            }
+                        }
                     }
                 }
                 _ = ticker.tick() => {
                     if let LedCommand::ApplyPattern(pattern) = &current {
                         let colour = compute_colour(pattern, pattern_start.elapsed());
+                        let colour = scale(colour, brightness);
                         for c in controllers.iter_mut() {
                             let _ = c.set_colour(colour);
                         }

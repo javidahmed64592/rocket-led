@@ -10,6 +10,7 @@ import {
   listPresets,
   logout,
   previewPattern,
+  setBrightness,
   turnOff,
   updatePreset,
 } from "@/lib/api";
@@ -147,7 +148,11 @@ export default function Home() {
     }) => updatePreset(id, preset),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["presets"] }),
   });
-  const previewMutation = useMutation({ mutationFn: previewPattern });
+  const previewMutation = useMutation({
+    mutationFn: previewPattern,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["state"] }),
+  });
+  const brightnessMutation = useMutation({ mutationFn: setBrightness });
   const deleteMutation = useMutation({
     mutationFn: deletePreset,
     onSuccess: () => {
@@ -164,6 +169,10 @@ export default function Home() {
   const [draftColours, setDraftColours] = useState<RgbColour[] | null>(null);
   const lastLoadedPresetIdRef = useRef<number | null | undefined>(undefined);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Brightness
+  const [brightness, setBrightnessLocal] = useState<number>(1.0);
+  const brightnessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Derived state
   const activePreset = presets?.find((p) => p.id === state?.preset_id) ?? null;
@@ -183,10 +192,18 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.preset_id]);
 
-  // Cleanup debounce timer on unmount
+  // Sync brightness from server
+  useEffect(() => {
+    if (state?.brightness !== undefined) {
+      setBrightnessLocal(state.brightness);
+    }
+  }, [state?.brightness]);
+
+  // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+      if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
     };
   }, []);
 
@@ -236,6 +253,19 @@ export default function Home() {
     if (!activePreset) return;
     setDraftColours(activePreset.pattern.colours);
     previewMutation.mutate(activePreset.pattern);
+  }
+
+  function handleBrightnessChange(value: number) {
+    setBrightnessLocal(value);
+    if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
+    brightnessTimerRef.current = setTimeout(() => {
+      brightnessMutation.mutate(value);
+    }, 175);
+  }
+
+  function handleBrightnessCommit(value: number) {
+    if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
+    brightnessMutation.mutate(value);
   }
 
   function handleSaveDraft() {
@@ -317,6 +347,35 @@ export default function Home() {
               onChange={handleDraftColourChange}
             />
           ) : null}
+
+          <div>
+            <label
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "12px",
+                color: "var(--dash-text-muted)",
+                marginBottom: "4px",
+              }}
+            >
+              <span>Brightness</span>
+              <span>{Math.round(brightness * 100)}%</span>
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={brightness}
+              onChange={(e) => handleBrightnessChange(parseFloat(e.target.value))}
+              onPointerUp={(e) =>
+                handleBrightnessCommit(
+                  parseFloat((e.target as HTMLInputElement).value),
+                )
+              }
+              style={{ width: "100%" }}
+            />
+          </div>
 
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {isDirty && (
