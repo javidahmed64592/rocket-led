@@ -15,7 +15,7 @@ export default function PageHeader({ title, children }: Props) {
         marginBottom: "32px",
       }}
     >
-      <h1 style={{ margin: 0, fontSize: "28px" }}>{title}</h1>
+      <h2 style={{ margin: 0, fontSize: "28px" }}>{title}</h2>
       <nav style={{ display: "flex", gap: "16px", alignItems: "center" }}>
         {children}
       </nav>

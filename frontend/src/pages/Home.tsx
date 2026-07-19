@@ -12,7 +12,6 @@ import {
   turnOff,
   updatePreset,
 } from "@/lib/api";
-import ActiveStateCard from "@/lib/components/ActiveStateCard";
 import PresetCard from "@/lib/components/PresetCard";
 import PresetForm, {
   defaultForm,
@@ -217,30 +216,6 @@ export default function Home() {
 
   return (
     <>
-      {/* Active-state card */}
-      <div style={{ marginBottom: "32px" }}>
-        <ActiveStateCard
-          activePreset={activePreset}
-          draftColours={draftColours}
-          brightness={brightness}
-          isOn={isOn}
-          isDirty={isDirty}
-          isSavingDraft={saveDraftMutation.isPending}
-          isTurningOff={offMutation.isPending}
-          isApplying={applyMutation.isPending}
-          canTurnOn={!!state?.preset_id}
-          onDraftColourChange={handleDraftColourChange}
-          onRevert={handleRevert}
-          onBrightnessChange={handleBrightnessChange}
-          onBrightnessCommit={handleBrightnessCommit}
-          onSaveDraft={handleSaveDraft}
-          onTurnOn={() => {
-            if (state?.preset_id) applyMutation.mutate(state.preset_id);
-          }}
-          onTurnOff={() => offMutation.mutate()}
-        />
-      </div>
-
       {/* Create / Edit form */}
       {formMode.mode !== "none" && (
         <PresetForm
@@ -257,39 +232,22 @@ export default function Home() {
       )}
 
       {/* Preset list */}
+      <h2 style={{ margin: "0 0 16px" }}>Presets</h2>
+
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "16px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: "16px",
         }}
       >
-        <h2 style={{ margin: 0 }}>Presets</h2>
-        {formMode.mode === "none" && (
-          <button className="dashboard-btn" onClick={openCreate}>
-            + New Preset
-          </button>
-        )}
-      </div>
-
-      {!presets || presets.length === 0 ? (
-        <p style={{ color: "var(--dash-text-muted)" }}>
-          No presets yet. Click "+ New Preset" to create one.
-        </p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          {presets.map((preset) => (
+        {presets?.map((preset) => {
+          const isActive = state?.preset_id === preset.id;
+          return (
             <PresetCard
               key={preset.id}
               preset={preset}
-              active={state?.preset_id === preset.id}
+              active={isActive}
               isApplying={applyMutation.isPending}
               isDuplicating={createMutation.isPending}
               isDeleting={deleteMutation.isPending}
@@ -302,10 +260,49 @@ export default function Home() {
                 })
               }
               onDelete={() => deleteMutation.mutate(preset.id!)}
+              activeControls={
+                isActive
+                  ? {
+                      draftColours,
+                      brightness,
+                      isOn,
+                      isDirty,
+                      isSavingDraft: saveDraftMutation.isPending,
+                      isTurningOff: offMutation.isPending,
+                      isApplying: applyMutation.isPending,
+                      canTurnOn: !!state?.preset_id,
+                      onDraftColourChange: handleDraftColourChange,
+                      onRevert: handleRevert,
+                      onBrightnessChange: handleBrightnessChange,
+                      onBrightnessCommit: handleBrightnessCommit,
+                      onSaveDraft: handleSaveDraft,
+                      onTurnOn: () => {
+                        if (state?.preset_id)
+                          applyMutation.mutate(state.preset_id);
+                      },
+                      onTurnOff: () => offMutation.mutate(),
+                    }
+                  : undefined
+              }
             />
-          ))}
-        </div>
-      )}
+          );
+        })}
+        {formMode.mode === "none" && (
+          <div
+            className="dashboard-card new-preset-card"
+            role="button"
+            tabIndex={0}
+            onClick={openCreate}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") openCreate();
+            }}
+            aria-label="Create new preset"
+          >
+            <span style={{ fontSize: "28px", lineHeight: 1 }}>+</span>
+            <span style={{ fontSize: "13px", fontWeight: 600 }}>New Preset</span>
+          </div>
+        )}
+      </div>
     </>
   );
 }

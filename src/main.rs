@@ -48,14 +48,6 @@ async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
     )
     .await?;
 
-    // Migrate: add brightness column if not present (error means it already exists)
-    if let Some(db) = AppDb::fetch(&rocket) {
-        let _ =
-            sqlx::query("ALTER TABLE active_state ADD COLUMN brightness REAL NOT NULL DEFAULT 1.0")
-                .execute(&**db)
-                .await;
-    }
-
     Ok(rocket)
 }
 

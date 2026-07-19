@@ -38,6 +38,7 @@
 
 .dashboard-card.active-preset {
   border-color: var(--dash-primary);
+  box-shadow: 0 0 0 1px var(--dash-primary), 0 4px 20px rgba(124, 92, 255, 0.25);
 }
 
 .dashboard-btn {
@@ -67,6 +68,16 @@
 
 .dashboard-btn.danger:hover:not(:disabled) {
   background: var(--dash-danger-hover);
+}
+
+.dashboard-btn.power-on {
+  background: var(--dash-success);
+  color: white;
+}
+
+.dashboard-btn.power-on:hover:not(:disabled) {
+  background: #3ec970;
+  box-shadow: 0 0 8px rgba(76, 217, 123, 0.35);
 }
 
 .dashboard-status-dot {
@@ -219,6 +230,46 @@
 .dashboard-btn.secondary:hover:not(:disabled) {
   background: var(--dash-border);
   color: var(--dash-text);
+}
+
+.new-preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 140px;
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--dash-text-muted);
+  user-select: none;
+}
+
+.new-preset-card:hover {
+  border-color: var(--dash-primary);
+  color: var(--dash-primary);
+}
+
+.pin-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.pin-badge--r {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff9090;
+}
+
+.pin-badge--g {
+  background: rgba(76, 217, 123, 0.15);
+  color: #80dd9a;
+}
+
+.pin-badge--b {
+  background: rgba(80, 120, 255, 0.15);
+  color: #8aabff;
 }
 
 /* ---- App header ---- */
