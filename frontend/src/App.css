@@ -221,6 +221,16 @@
   font-size: 14px;
 }
 
+.sort-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.sort-btn-active {
+  background: var(--dash-primary);
+}
+
 .dashboard-btn.secondary {
   background: var(--dash-surface-hover);
   color: var(--dash-text-muted);
