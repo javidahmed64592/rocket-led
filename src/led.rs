@@ -31,18 +31,12 @@ impl LedController {
 
     /// Set the colour of the LED
     pub fn set_colour(&mut self, c: RgbColour) -> Result<(), rppal::gpio::Error> {
-        // Correction gains to compensate for channel brightness differences on cheap RGB LEDs.
-        // Green and blue dies are typically brighter than red at the same duty cycle, so mixed
-        // colours (e.g. orange) skew green/blue without these adjustments. Tune by eye.
-        const GREEN_GAIN: f64 = 0.3;
-        const BLUE_GAIN: f64 = 1.0;
-
         self.red
             .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.r))?;
         self.green
-            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.g) * GREEN_GAIN)?;
+            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.g))?;
         self.blue
-            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.b) * BLUE_GAIN)?;
+            .set_pwm_frequency(200.0, Self::calculate_pwm_value(c.b))?;
         Ok(())
     }
 
