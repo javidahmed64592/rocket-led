@@ -44,7 +44,7 @@ async fn init_app_db(rocket: rocket::Rocket<rocket::Build>) -> fairing::Result {
     let rocket = create_app_db_table(
         rocket,
         "active_state",
-        "id INTEGER PRIMARY KEY CHECK (id = 1), preset_id INTEGER REFERENCES presets(id), source TEXT NOT NULL DEFAULT 'manual'",
+        "id INTEGER PRIMARY KEY CHECK (id = 1), preset_id INTEGER REFERENCES presets(id), source TEXT NOT NULL DEFAULT 'manual', brightness REAL NOT NULL DEFAULT 1.0",
     )
     .await?;
 
@@ -82,7 +82,18 @@ fn rocket() -> _ {
             Box::pin(async move {
                 let pool = (**AppDb::fetch(rocket).expect("AppDb not attached")).clone();
                 let gpio = Gpio::new().expect("failed to initialise GPIO for LED task");
-                let runtime = spawn_led_task(gpio, pool.clone());
+
+                // Restore persisted brightness (defaults to 1.0 if no row yet)
+                let initial_brightness: f64 = sqlx::query_scalar::<_, f64>(
+                    "SELECT COALESCE(brightness, 1.0) FROM active_state WHERE id = 1",
+                )
+                .fetch_optional(&pool)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or(1.0);
+
+                let runtime = spawn_led_task(gpio, pool.clone(), initial_brightness);
 
                 // Restore the last active state so the LED reflects reality on reboot
                 if let Ok(Some((Some(preset_id), source))) =

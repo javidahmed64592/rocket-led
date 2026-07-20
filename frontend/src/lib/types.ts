@@ -27,4 +27,5 @@ export type ActiveState = {
   preset_id: number | null;
   preset_name: string | null;
   source: "manual" | "schedule" | "off";
+  brightness: number;
 };

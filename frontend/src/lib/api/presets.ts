@@ -30,3 +30,9 @@ export const previewPattern = (pattern: LedPattern) =>
   });
 
 export const turnOff = () => apiFetch<void>("/state/off", { method: "POST" });
+
+export const setBrightness = (brightness: number) =>
+  apiFetch<void>("/state/brightness", {
+    method: "PATCH",
+    body: JSON.stringify({ brightness }),
+  });

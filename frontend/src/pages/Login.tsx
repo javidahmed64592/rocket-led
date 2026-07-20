@@ -29,7 +29,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <form className="login-card dashboard-card" onSubmit={handleSubmit}>
-        <h1 className="login-title">rocket-led</h1>
+        <h1 className="login-title">Rocket LED</h1>
         {error && <p className="login-error">{error}</p>}
         <label className="login-field">
           <span>Username</span>

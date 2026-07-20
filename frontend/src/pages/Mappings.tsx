@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 
 import {
   createMapping,
@@ -9,38 +8,36 @@ import {
   testMapping,
   updateMapping,
 } from "@/lib/api";
+import MappingCard from "@/lib/components/MappingCard";
+import MappingForm from "@/lib/components/MappingForm";
+import {
+  emptyMappingForm,
+  type MappingFormState,
+  parsePins,
+  pinsValid,
+  type TestStatus,
+} from "@/lib/components/mappingFormUtils";
 import type { PinMapping } from "@/lib/types";
-
-type FormState = {
-  name: string;
-  red_pin: string;
-  green_pin: string;
-  blue_pin: string;
-};
-
-const emptyForm: FormState = {
-  name: "",
-  red_pin: "",
-  green_pin: "",
-  blue_pin: "",
-};
-
-type FormMode = { mode: "create" } | { mode: "edit"; mapping: PinMapping };
 
 export default function Mappings() {
   const qc = useQueryClient();
 
-  const { data: mappings, isLoading } = useQuery({
+  const { data: mappings } = useQuery({
     queryKey: ["mappings"],
     queryFn: listMappings,
   });
 
-  const [formMode, setFormMode] = useState<FormMode>({ mode: "create" });
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [testStatus, setTestStatus] = useState<
-    "idle" | "testing" | "ok" | "error"
-  >("idle");
-  const [testError, setTestError] = useState<string | null>(null);
+  // Create form state
+  const [createForm, setCreateForm] =
+    useState<MappingFormState>(emptyMappingForm);
+  const [createTestStatus, setCreateTestStatus] = useState<TestStatus>("idle");
+  const [createTestError, setCreateTestError] = useState<string | null>(null);
+
+  // Edit state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<MappingFormState>(emptyMappingForm);
+  const [editTestStatus, setEditTestStatus] = useState<TestStatus>("idle");
+  const [editTestError, setEditTestError] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: deleteMapping,
@@ -51,8 +48,9 @@ export default function Mappings() {
     mutationFn: createMapping,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mappings"] });
-      setForm(emptyForm);
-      setTestStatus("idle");
+      setCreateForm(emptyMappingForm);
+      setCreateTestStatus("idle");
+      setCreateTestError(null);
     },
   });
 
@@ -66,9 +64,10 @@ export default function Mappings() {
     }) => updateMapping(id, mapping),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mappings"] });
-      setForm(emptyForm);
-      setFormMode({ mode: "create" });
-      setTestStatus("idle");
+      setEditingId(null);
+      setEditForm(emptyMappingForm);
+      setEditTestStatus("idle");
+      setEditTestError(null);
     },
   });
 
@@ -76,254 +75,162 @@ export default function Mappings() {
     mutationFn: (id: number) => testMapping({ id }),
   });
 
-  function parsePins() {
-    return {
-      red_pin: parseInt(form.red_pin, 10),
-      green_pin: parseInt(form.green_pin, 10),
-      blue_pin: parseInt(form.blue_pin, 10),
-    };
-  }
-
-  function pinsValid() {
-    const { red_pin, green_pin, blue_pin } = parsePins();
-    return !isNaN(red_pin) && !isNaN(green_pin) && !isNaN(blue_pin);
-  }
-
-  async function handleTest() {
-    if (!pinsValid()) return;
-    setTestStatus("testing");
-    setTestError(null);
+  // Handlers — create
+  async function handleCreateTest() {
+    if (!pinsValid(createForm)) return;
+    setCreateTestStatus("testing");
+    setCreateTestError(null);
     try {
-      await testMapping({ ...parsePins() });
-      setTestStatus("ok");
+      await testMapping(parsePins(createForm));
+      setCreateTestStatus("ok");
     } catch (e) {
-      setTestStatus("error");
-      setTestError(e instanceof Error ? e.message : "Test failed");
+      setCreateTestStatus("error");
+      setCreateTestError(e instanceof Error ? e.message : "Test failed");
     }
   }
 
-  function handleSave() {
-    if (!form.name.trim() || !pinsValid()) return;
-    const mappingData = {
-      name: form.name.trim(),
-      ...parsePins(),
-    } as Omit<PinMapping, "id">;
-    if (formMode.mode === "edit") {
-      updateMutation.mutate({ id: formMode.mapping.id!, mapping: mappingData });
-    } else {
-      createMutation.mutate(mappingData);
+  function handleCreate() {
+    if (!createForm.name.trim() || !pinsValid(createForm)) return;
+    createMutation.mutate({
+      name: createForm.name.trim(),
+      ...parsePins(createForm),
+    } as Omit<PinMapping, "id">);
+  }
+
+  function handleCreateFormChange(updates: Partial<MappingFormState>) {
+    setCreateForm((f) => ({ ...f, ...updates }));
+    if (
+      updates.red_pin !== undefined ||
+      updates.green_pin !== undefined ||
+      updates.blue_pin !== undefined
+    ) {
+      setCreateTestStatus("idle");
+      setCreateTestError(null);
+    }
+  }
+
+  // Handlers — edit
+  async function handleEditTest() {
+    if (!pinsValid(editForm)) return;
+    setEditTestStatus("testing");
+    setEditTestError(null);
+    try {
+      await testMapping(parsePins(editForm));
+      setEditTestStatus("ok");
+    } catch (e) {
+      setEditTestStatus("error");
+      setEditTestError(e instanceof Error ? e.message : "Test failed");
+    }
+  }
+
+  function handleSaveEdit() {
+    if (!editingId || !editForm.name.trim() || !pinsValid(editForm)) return;
+    updateMutation.mutate({
+      id: editingId,
+      mapping: {
+        name: editForm.name.trim(),
+        ...parsePins(editForm),
+      } as Omit<PinMapping, "id">,
+    });
+  }
+
+  function handleEditFormChange(updates: Partial<MappingFormState>) {
+    setEditForm((f) => ({ ...f, ...updates }));
+    if (
+      updates.red_pin !== undefined ||
+      updates.green_pin !== undefined ||
+      updates.blue_pin !== undefined
+    ) {
+      setEditTestStatus("idle");
+      setEditTestError(null);
     }
   }
 
   function openEdit(mapping: PinMapping) {
-    setForm({
+    setEditingId(mapping.id!);
+    setEditForm({
       name: mapping.name,
       red_pin: String(mapping.red_pin),
       green_pin: String(mapping.green_pin),
       blue_pin: String(mapping.blue_pin),
     });
-    setFormMode({ mode: "edit", mapping });
-    setTestStatus("ok"); // saved mapping already has proven pins
-    setTestError(null);
+    setEditTestStatus("ok"); // saved mapping already has proven pins
+    setEditTestError(null);
   }
 
   function cancelEdit() {
-    setForm(emptyForm);
-    setFormMode({ mode: "create" });
-    setTestStatus("idle");
-    setTestError(null);
+    setEditingId(null);
+    setEditForm(emptyMappingForm);
+    setEditTestStatus("idle");
+    setEditTestError(null);
   }
 
-  const canSave =
-    !!form.name.trim() &&
-    pinsValid() &&
-    (formMode.mode === "edit" || testStatus === "ok") &&
-    !createMutation.isPending &&
+  const canCreate =
+    !!createForm.name.trim() &&
+    pinsValid(createForm) &&
+    createTestStatus === "ok" &&
+    !createMutation.isPending;
+
+  const canSaveEdit =
+    !!editForm.name.trim() &&
+    pinsValid(editForm) &&
+    editTestStatus === "ok" &&
     !updateMutation.isPending;
 
   return (
-    <div className="dashboard-page" style={{ padding: "32px" }}>
-      <header
+    <>
+      <h1 style={{ margin: "0 0 32px" }}>Pin Mappings</h1>
+
+      <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "32px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: "16px",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: "28px" }}>Pin Mappings</h1>
-        <nav style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <Link to="/home" className="nav-link">
-            Dashboard
-          </Link>
-        </nav>
-      </header>
-
-      {/* Add / Edit form */}
-      <section
-        className="dashboard-card"
-        style={{ marginBottom: "32px", maxWidth: "400px" }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: "16px" }}>
-          {formMode.mode === "edit" ? "Edit Mapping" : "Add Mapping"}
-        </h2>
-
-        <div style={{ marginBottom: "12px" }}>
-          <input
-            className="dash-input"
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        {mappings?.map((m) => (
+          <MappingCard
+            key={m.id}
+            mapping={m}
+            isEditing={editingId === m.id}
+            isDeleting={deleteMutation.isPending}
+            isTesting={testRowMutation.isPending}
+            editForm={editingId === m.id ? editForm : undefined}
+            editTestStatus={editTestStatus}
+            editTestError={editTestError}
+            isSavingEdit={updateMutation.isPending}
+            canSaveEdit={canSaveEdit}
+            saveError={updateMutation.error?.message ?? null}
+            onEdit={() => openEdit(m)}
+            onDelete={() => deleteMutation.mutate(m.id!)}
+            onTestRow={() => testRowMutation.mutate(m.id!)}
+            onCancelEdit={cancelEdit}
+            onEditFormChange={handleEditFormChange}
+            onEditTest={handleEditTest}
+            onSaveEdit={handleSaveEdit}
           />
-        </div>
+        ))}
 
+        {/* Add Mapping card — always visible */}
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "12px",
-            marginBottom: "16px",
-          }}
+          className="dashboard-card"
+          style={{ display: "flex", flexDirection: "column", gap: "12px" }}
         >
-          <input
-            className="dash-input"
-            type="number"
-            placeholder="Red pin"
-            value={form.red_pin}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, red_pin: e.target.value }));
-              setTestStatus("idle");
-            }}
-          />
-          <input
-            className="dash-input"
-            type="number"
-            placeholder="Green pin"
-            value={form.green_pin}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, green_pin: e.target.value }));
-              setTestStatus("idle");
-            }}
-          />
-          <input
-            className="dash-input"
-            type="number"
-            placeholder="Blue pin"
-            value={form.blue_pin}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, blue_pin: e.target.value }));
-              setTestStatus("idle");
-            }}
+          <strong style={{ fontSize: "14px" }}>Add Mapping</strong>
+          <MappingForm
+            form={createForm}
+            testStatus={createTestStatus}
+            testError={createTestError}
+            isSaving={createMutation.isPending}
+            canSave={canCreate}
+            isEdit={false}
+            saveError={createMutation.error?.message ?? null}
+            onChange={handleCreateFormChange}
+            onTest={handleCreateTest}
+            onSave={handleCreate}
           />
         </div>
-
-        {testError && (
-          <p style={{ color: "var(--dash-danger)", margin: "0 0 12px" }}>
-            {testError}
-          </p>
-        )}
-        {(createMutation.error || updateMutation.error) && (
-          <p style={{ color: "var(--dash-danger)", margin: "0 0 12px" }}>
-            {(createMutation.error ?? updateMutation.error)?.message}
-          </p>
-        )}
-
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <button
-            className="dashboard-btn"
-            onClick={handleTest}
-            disabled={!pinsValid() || testStatus === "testing"}
-          >
-            {testStatus === "testing" ? "Testing…" : "Test"}
-          </button>
-          {testStatus === "ok" && (
-            <span style={{ color: "var(--dash-success)", fontSize: "14px" }}>
-              ✓ OK
-            </span>
-          )}
-          {formMode.mode === "edit" && (
-            <button
-              className="dashboard-btn secondary"
-              onClick={cancelEdit}
-              style={{ marginLeft: "auto" }}
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            className="dashboard-btn"
-            onClick={handleSave}
-            disabled={!canSave}
-            style={formMode.mode === "create" ? { marginLeft: "auto" } : {}}
-          >
-            {createMutation.isPending || updateMutation.isPending
-              ? "Saving…"
-              : formMode.mode === "edit"
-                ? "Update Mapping"
-                : "Save Mapping"}
-          </button>
-        </div>
-      </section>
-
-      {/* Existing mappings */}
-      <h2 style={{ marginBottom: "16px" }}>Existing Mappings</h2>
-      {isLoading ? (
-        <p style={{ color: "var(--dash-text-muted)" }}>Loading…</p>
-      ) : !mappings || mappings.length === 0 ? (
-        <p style={{ color: "var(--dash-text-muted)" }}>No mappings yet.</p>
-      ) : (
-        <table className="dash-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Red pin</th>
-              <th>Green pin</th>
-              <th>Blue pin</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {mappings.map((m) => (
-              <tr key={m.id}>
-                <td>{m.name}</td>
-                <td>{m.red_pin}</td>
-                <td>{m.green_pin}</td>
-                <td>{m.blue_pin}</td>
-                <td>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      className="dashboard-btn icon-btn"
-                      onClick={() => openEdit(m)}
-                      title="Edit mapping"
-                      aria-label="Edit mapping"
-                    >
-                      ✏
-                    </button>
-                    <button
-                      className="dashboard-btn icon-btn"
-                      onClick={() => testRowMutation.mutate(m.id!)}
-                      disabled={testRowMutation.isPending}
-                      title="Test this mapping (pauses active pattern)"
-                      aria-label="Test mapping"
-                    >
-                      ⚡
-                    </button>
-                    <button
-                      className="dashboard-btn icon-btn danger"
-                      onClick={() => deleteMutation.mutate(m.id!)}
-                      disabled={deleteMutation.isPending}
-                      title="Delete mapping"
-                      aria-label="Delete mapping"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

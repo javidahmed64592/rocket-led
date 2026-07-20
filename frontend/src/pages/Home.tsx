@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 
 import {
   applyPreset,
@@ -8,93 +7,21 @@ import {
   deletePreset,
   getState,
   listPresets,
-  logout,
   previewPattern,
+  setBrightness,
   turnOff,
   updatePreset,
 } from "@/lib/api";
-import ColourSwatchList from "@/lib/components/ColourSwatchList";
-import type {
-  LedPattern,
-  LedPatternKind,
-  LedPreset,
-  RgbColour,
-} from "@/lib/types";
-
-const PATTERN_KINDS: Exclude<LedPatternKind, "off">[] = [
-  "solid",
-  "pulse",
-  "blink",
-  "gradient",
-  "rainbow",
-];
-
-type FormState = {
-  name: string;
-  kind: Exclude<LedPatternKind, "off">;
-  colours: RgbColour[];
-  interval_ms: number;
-};
-
-const defaultForm: FormState = {
-  name: "",
-  kind: "solid",
-  colours: [{ r: 255, g: 255, b: 255 }],
-  interval_ms: 1000,
-};
-
-type FormMode =
-  { mode: "none" } | { mode: "create" } | { mode: "edit"; preset: LedPreset };
-
-function patternToForm(preset: LedPreset): FormState {
-  return {
-    name: preset.name,
-    kind: preset.pattern.kind as Exclude<LedPatternKind, "off">,
-    colours:
-      preset.pattern.colours.length > 0
-        ? preset.pattern.colours
-        : [{ r: 255, g: 255, b: 255 }],
-    interval_ms: preset.pattern.interval_ms,
-  };
-}
-
-function PatternPreview({ pattern }: { pattern: LedPattern }) {
-  if (pattern.kind === "rainbow") {
-    return (
-      <div
-        aria-label="Rainbow"
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: "50%",
-          flexShrink: 0,
-          background:
-            "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
-        }}
-      />
-    );
-  }
-  return (
-    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-      {pattern.colours.map((c, i) => (
-        <span
-          key={i}
-          style={{
-            display: "inline-block",
-            width: 18,
-            height: 18,
-            borderRadius: "50%",
-            background: `rgb(${c.r},${c.g},${c.b})`,
-            border: "1px solid var(--dash-border)",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+import PresetCard from "@/lib/components/PresetCard";
+import PresetFormCard from "@/lib/components/PresetFormCard";
+import {
+  type FormMode,
+  type FormState,
+  patternToForm,
+} from "@/lib/components/presetFormUtils";
+import type { LedPreset, RgbColour } from "@/lib/types";
 
 export default function Home() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   // Queries
@@ -118,6 +45,9 @@ export default function Home() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["presets"] });
       setFormMode({ mode: "none" });
+    },
+    onError: () => {
+      // keep the inline card open so the user sees the error
     },
   });
   const updateMutation = useMutation({
@@ -147,7 +77,11 @@ export default function Home() {
     }) => updatePreset(id, preset),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["presets"] }),
   });
-  const previewMutation = useMutation({ mutationFn: previewPattern });
+  const previewMutation = useMutation({
+    mutationFn: previewPattern,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["state"] }),
+  });
+  const brightnessMutation = useMutation({ mutationFn: setBrightness });
   const deleteMutation = useMutation({
     mutationFn: deletePreset,
     onSuccess: () => {
@@ -156,14 +90,58 @@ export default function Home() {
     },
   });
 
+  // Sort state
+  type SortField = "name" | "pattern";
+  const [sortBy, setSortBy] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   // Form state
   const [formMode, setFormMode] = useState<FormMode>({ mode: "none" });
-  const [form, setForm] = useState<FormState>(defaultForm);
 
   // Active-state card draft colours
   const [draftColours, setDraftColours] = useState<RgbColour[] | null>(null);
   const lastLoadedPresetIdRef = useRef<number | null | undefined>(undefined);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Brightness
+  const [brightness, setBrightnessLocal] = useState<number>(1.0);
+  const [prevServerBrightness, setPrevServerBrightness] = useState<
+    number | undefined
+  >(undefined);
+  const brightnessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync brightness from server state using derived-state-during-render pattern
+  if (
+    state?.brightness !== undefined &&
+    state.brightness !== prevServerBrightness
+  ) {
+    setPrevServerBrightness(state.brightness);
+    setBrightnessLocal(state.brightness);
+  }
+
+  // Sorted presets
+  const sortedPresets = presets
+    ? [...presets].sort((a, b) => {
+        if (!sortBy) return 0;
+        const av = sortBy === "name" ? a.name : a.pattern.kind;
+        const bv = sortBy === "name" ? b.name : b.pattern.kind;
+        const cmp = av.localeCompare(bv);
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : presets;
+
+  function handleSortClick(field: SortField) {
+    if (sortBy === field) {
+      if (sortDir === "asc") setSortDir("desc");
+      else {
+        setSortBy(null);
+        setSortDir("asc");
+      }
+    } else {
+      setSortBy(field);
+      setSortDir("asc");
+    }
+  }
 
   // Derived state
   const activePreset = presets?.find((p) => p.id === state?.preset_id) ?? null;
@@ -183,45 +161,15 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.preset_id]);
 
-  // Cleanup debounce timer on unmount
+  // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+      if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
     };
   }, []);
 
   // Handlers
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
-  function handleKindChange(kind: Exclude<LedPatternKind, "off">) {
-    setForm((f) => ({
-      ...f,
-      kind,
-      colours: kind === "solid" ? f.colours.slice(0, 1) : f.colours,
-    }));
-  }
-
-  function handleFormSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    const preset: Omit<LedPreset, "id"> = {
-      name: form.name.trim(),
-      pattern: {
-        kind: form.kind,
-        colours: form.kind === "rainbow" ? [] : form.colours,
-        interval_ms: form.interval_ms,
-      },
-    };
-    if (formMode.mode === "edit" && formMode.preset.id != null) {
-      updateMutation.mutate({ id: formMode.preset.id, preset });
-    } else {
-      createMutation.mutate(preset);
-    }
-  }
-
   function handleDraftColourChange(colours: RgbColour[]) {
     setDraftColours(colours);
     if (activePreset) {
@@ -238,6 +186,19 @@ export default function Home() {
     previewMutation.mutate(activePreset.pattern);
   }
 
+  function handleBrightnessChange(value: number) {
+    setBrightnessLocal(value);
+    if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
+    brightnessTimerRef.current = setTimeout(() => {
+      brightnessMutation.mutate(value);
+    }, 175);
+  }
+
+  function handleBrightnessCommit(value: number) {
+    if (brightnessTimerRef.current) clearTimeout(brightnessTimerRef.current);
+    brightnessMutation.mutate(value);
+  }
+
   function handleSaveDraft() {
     if (!activePreset?.id || !draftColours) return;
     saveDraftMutation.mutate({
@@ -250,394 +211,190 @@ export default function Home() {
   }
 
   function openEdit(preset: LedPreset) {
-    setForm(patternToForm(preset));
     setFormMode({ mode: "edit", preset });
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function openCreate() {
-    setForm(defaultForm);
     setFormMode({ mode: "create" });
   }
 
-  const isMutating = createMutation.isPending || updateMutation.isPending;
-
   return (
-    <div className="dashboard-page" style={{ padding: "32px" }}>
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "32px",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "28px" }}>rocket-led</h1>
-        <nav style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <Link to="/mappings" className="nav-link">
-            Mappings
-          </Link>
-          <button className="dashboard-btn" onClick={handleLogout}>
-            Log out
-          </button>
-        </nav>
-      </header>
-
-      {/* Active-state card */}
-      <div style={{ marginBottom: "32px" }}>
-        <div
-          className={`dashboard-card${isOn ? " active-preset" : ""}`}
-          style={{
-            display: "inline-flex",
-            flexDirection: "column",
-            gap: "10px",
-            minWidth: "200px",
-            maxWidth: "260px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span className={`dashboard-status-dot${isOn ? " on" : ""}`} />
-            <strong
-              style={{ fontSize: "13px", color: "var(--dash-text-muted)" }}
-            >
-              {isOn ? "Active" : "Off"}
-            </strong>
-          </div>
-
-          {activePreset && (
-            <strong style={{ fontSize: "14px" }}>{activePreset.name}</strong>
-          )}
-
-          {activePreset?.pattern.kind === "rainbow" ? (
-            <PatternPreview pattern={activePreset.pattern} />
-          ) : activePreset && draftColours ? (
-            <ColourSwatchList
-              colours={draftColours}
-              onChange={handleDraftColourChange}
-            />
-          ) : null}
-
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {isDirty && (
-              <>
-                <button
-                  className="dashboard-btn"
-                  style={{ fontSize: "12px", padding: "6px 12px" }}
-                  onClick={handleSaveDraft}
-                  disabled={saveDraftMutation.isPending}
-                >
-                  Save
-                </button>
-                <button
-                  className="dashboard-btn secondary"
-                  style={{ fontSize: "12px", padding: "6px 12px" }}
-                  onClick={handleRevert}
-                >
-                  Revert
-                </button>
-              </>
-            )}
-            {isOn ? (
-              <button
-                className="dashboard-btn danger"
-                style={{ fontSize: "12px", padding: "6px 12px" }}
-                onClick={() => offMutation.mutate()}
-                disabled={offMutation.isPending}
-              >
-                {offMutation.isPending ? "Turning off…" : "Turn Off"}
-              </button>
-            ) : (
-              <button
-                className="dashboard-btn"
-                style={{ fontSize: "12px", padding: "6px 12px" }}
-                onClick={() => {
-                  if (state?.preset_id) applyMutation.mutate(state.preset_id);
-                }}
-                disabled={!state?.preset_id || applyMutation.isPending}
-              >
-                Turn On
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Create / Edit form */}
-      {formMode.mode !== "none" && (
-        <section
-          className="dashboard-card"
-          style={{ marginBottom: "32px", maxWidth: "500px" }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: "16px" }}>
-            {formMode.mode === "edit" ? "Edit Preset" : "New Preset"}
-          </h2>
-          <form onSubmit={handleFormSubmit}>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flexWrap: "wrap",
-                marginBottom: "16px",
-              }}
-            >
-              <input
-                className="dash-input"
-                placeholder="Preset name"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, name: e.target.value }))
-                }
-                required
-                autoFocus
-                style={{ flex: "1 1 160px" }}
-              />
-              <select
-                className="dash-input"
-                value={form.kind}
-                onChange={(e) =>
-                  handleKindChange(
-                    e.target.value as Exclude<LedPatternKind, "off">
-                  )
-                }
-                style={{ flex: "0 0 auto" }}
-              >
-                {PATTERN_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k.charAt(0).toUpperCase() + k.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {form.kind !== "rainbow" && (
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "8px",
-                    fontSize: "14px",
-                    color: "var(--dash-text-muted)",
-                  }}
-                >
-                  Colours
-                </label>
-                <ColourSwatchList
-                  colours={form.colours}
-                  onChange={(colours) => setForm((f) => ({ ...f, colours }))}
-                  maxColours={form.kind === "solid" ? 1 : undefined}
-                />
-              </div>
-            )}
-
-            {form.kind !== "rainbow" &&
-              presets &&
-              presets.filter(
-                (p) => formMode.mode !== "edit" || p.id !== formMode.preset.id
-              ).length > 0 && (
-                <div style={{ marginBottom: "16px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      fontSize: "13px",
-                      color: "var(--dash-text-muted)",
-                    }}
-                  >
-                    Copy colours from…
-                  </label>
-                  <select
-                    className="dash-input"
-                    style={{ maxWidth: "260px" }}
-                    value=""
-                    onChange={(e) => {
-                      const src = presets.find(
-                        (p) => p.id === Number(e.target.value)
-                      );
-                      if (src && src.pattern.colours.length > 0) {
-                        const colours =
-                          form.kind === "solid"
-                            ? src.pattern.colours.slice(0, 1)
-                            : src.pattern.colours;
-                        setForm((f) => ({ ...f, colours }));
-                      }
-                    }}
-                  >
-                    <option value="">— pick a preset —</option>
-                    {presets
-                      .filter(
-                        (p) =>
-                          formMode.mode !== "edit" ||
-                          p.id !== formMode.preset.id
-                      )
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "8px",
-                  fontSize: "14px",
-                  color: "var(--dash-text-muted)",
-                }}
-              >
-                Interval: {form.interval_ms}ms (
-                {(form.interval_ms / 1000).toFixed(1)}s)
-              </label>
-              <input
-                type="range"
-                min={200}
-                max={10000}
-                step={100}
-                value={form.interval_ms}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    interval_ms: parseInt(e.target.value, 10),
-                  }))
-                }
-                style={{ width: "100%", maxWidth: "400px" }}
-              />
-            </div>
-
-            {(createMutation.error || updateMutation.error) && (
-              <p style={{ color: "var(--dash-danger)", margin: "0 0 12px" }}>
-                {(createMutation.error ?? updateMutation.error)?.message}
-              </p>
-            )}
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="submit"
-                className="dashboard-btn"
-                disabled={isMutating || !form.name.trim()}
-              >
-                {isMutating
-                  ? "Saving…"
-                  : formMode.mode === "edit"
-                    ? "Update Preset"
-                    : "Save Preset"}
-              </button>
-              <button
-                type="button"
-                className="dashboard-btn secondary"
-                onClick={() => setFormMode({ mode: "none" })}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
-
+    <>
       {/* Preset list */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "16px",
+          gap: "12px",
+          margin: "0 0 16px",
+          flexWrap: "wrap",
         }}
       >
         <h2 style={{ margin: 0 }}>Presets</h2>
-        {formMode.mode === "none" && (
-          <button className="dashboard-btn" onClick={openCreate}>
-            + New Preset
-          </button>
-        )}
-      </div>
-
-      {!presets || presets.length === 0 ? (
-        <p style={{ color: "var(--dash-text-muted)" }}>
-          No presets yet. Click "+ New Preset" to create one.
-        </p>
-      ) : (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            marginLeft: "auto",
           }}
         >
-          {presets.map((preset) => {
-            const active = state?.preset_id === preset.id;
+          <span
+            style={{
+              fontSize: "12px",
+              color: "var(--dash-text-muted)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Sort by
+          </span>
+          {(["name", "pattern"] as const).map((field) => {
+            const active = sortBy === field;
             return (
-              <div
-                key={preset.id}
-                className={`dashboard-card${active ? " active-preset" : ""}`}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
+              <button
+                key={field}
+                className={`dashboard-btn sort-btn${active ? " sort-btn-active" : " secondary"}`}
+                onClick={() => handleSortClick(field)}
+                title={
+                  active
+                    ? sortDir === "asc"
+                      ? "Sorted A→Z, click for Z→A"
+                      : "Sorted Z→A, click to clear"
+                    : `Sort by ${field}`
+                }
               >
-                <PatternPreview pattern={preset.pattern} />
-                <strong style={{ fontSize: "14px" }}>{preset.name}</strong>
-                <span
-                  style={{ fontSize: "12px", color: "var(--dash-text-muted)" }}
-                >
-                  {preset.pattern.kind} · {preset.pattern.interval_ms}ms
-                </span>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "6px",
-                    marginTop: "auto",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    className="dashboard-btn"
-                    style={{ flex: 1, fontSize: "13px" }}
-                    disabled={active || applyMutation.isPending}
-                    onClick={() => applyMutation.mutate(preset.id!)}
-                  >
-                    {active ? "Active" : "Apply"}
-                  </button>
-                  <button
-                    className="dashboard-btn icon-btn"
-                    onClick={() => openEdit(preset)}
-                    title="Edit preset"
-                    aria-label="Edit preset"
-                  >
-                    ✏
-                  </button>
-                  <button
-                    className="dashboard-btn icon-btn"
-                    onClick={() =>
-                      createMutation.mutate({
-                        name: `${preset.name} (copy)`,
-                        pattern: preset.pattern,
-                      })
-                    }
-                    title="Duplicate preset"
-                    aria-label="Duplicate preset"
-                    disabled={createMutation.isPending}
-                  >
-                    ⧉
-                  </button>
-                  <button
-                    className="dashboard-btn icon-btn danger"
-                    onClick={() => deleteMutation.mutate(preset.id!)}
-                    title="Delete preset"
-                    aria-label="Delete preset"
-                    disabled={deleteMutation.isPending}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
+                {field.charAt(0).toUpperCase() + field.slice(1)}
+                {active && (
+                  <span style={{ marginLeft: "4px" }}>
+                    {sortDir === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
+              </button>
             );
           })}
         </div>
-      )}
-    </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: "16px",
+        }}
+      >
+        {sortedPresets?.map((preset) => {
+          const isActive = state?.preset_id === preset.id;
+
+          if (formMode.mode === "edit" && formMode.preset.id === preset.id) {
+            return (
+              <PresetFormCard
+                key={preset.id}
+                mode="edit"
+                initialForm={patternToForm(preset)}
+                excludePresetId={preset.id}
+                presets={presets}
+                isMutating={updateMutation.isPending}
+                error={updateMutation.error}
+                onSubmit={(fs: FormState) =>
+                  updateMutation.mutate({
+                    id: preset.id!,
+                    preset: {
+                      name: fs.name.trim(),
+                      pattern: {
+                        kind: fs.kind,
+                        colours: fs.kind === "rainbow" ? [] : fs.colours,
+                        interval_ms: fs.interval_ms,
+                      },
+                    },
+                  })
+                }
+                onClose={() => setFormMode({ mode: "none" })}
+              />
+            );
+          }
+
+          return (
+            <PresetCard
+              key={preset.id}
+              preset={preset}
+              active={isActive}
+              isApplying={applyMutation.isPending}
+              isDuplicating={createMutation.isPending}
+              isDeleting={deleteMutation.isPending}
+              onApply={() => applyMutation.mutate(preset.id!)}
+              onEdit={() => openEdit(preset)}
+              onDuplicate={() =>
+                createMutation.mutate({
+                  name: `${preset.name} (copy)`,
+                  pattern: preset.pattern,
+                })
+              }
+              onDelete={() => deleteMutation.mutate(preset.id!)}
+              activeControls={
+                isActive
+                  ? {
+                      draftColours,
+                      brightness,
+                      isOn,
+                      isDirty,
+                      isSavingDraft: saveDraftMutation.isPending,
+                      isTurningOff: offMutation.isPending,
+                      isApplying: applyMutation.isPending,
+                      canTurnOn: !!state?.preset_id,
+                      onDraftColourChange: handleDraftColourChange,
+                      onRevert: handleRevert,
+                      onBrightnessChange: handleBrightnessChange,
+                      onBrightnessCommit: handleBrightnessCommit,
+                      onSaveDraft: handleSaveDraft,
+                      onTurnOn: () => {
+                        if (state?.preset_id)
+                          applyMutation.mutate(state.preset_id);
+                      },
+                      onTurnOff: () => offMutation.mutate(),
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
+        {formMode.mode === "create" ? (
+          <PresetFormCard
+            mode="create"
+            presets={presets}
+            isMutating={createMutation.isPending}
+            error={createMutation.error}
+            onSubmit={(fs: FormState) =>
+              createMutation.mutate({
+                name: fs.name.trim(),
+                pattern: {
+                  kind: fs.kind,
+                  colours: fs.kind === "rainbow" ? [] : fs.colours,
+                  interval_ms: fs.interval_ms,
+                },
+              })
+            }
+            onClose={() => setFormMode({ mode: "none" })}
+          />
+        ) : (
+          formMode.mode === "none" && (
+            <div
+              className="dashboard-card new-preset-card"
+              role="button"
+              tabIndex={0}
+              onClick={openCreate}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openCreate();
+              }}
+              aria-label="Create new preset"
+            >
+              <span style={{ fontSize: "28px", lineHeight: 1 }}>+</span>
+              <span style={{ fontSize: "13px", fontWeight: 600 }}>
+                New Preset
+              </span>
+            </div>
+          )
+        )}
+      </div>
+    </>
   );
 }
