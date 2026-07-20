@@ -1,4 +1,8 @@
-import { type MappingFormState, pinsValid, type TestStatus } from "./mappingFormUtils";
+import {
+  type MappingFormState,
+  pinsValid,
+  type TestStatus,
+} from "./mappingFormUtils";
 
 type Props = {
   form: MappingFormState;

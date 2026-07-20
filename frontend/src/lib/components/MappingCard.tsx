@@ -1,5 +1,8 @@
 import MappingForm from "@/lib/components/MappingForm";
-import type { MappingFormState, TestStatus } from "@/lib/components/mappingFormUtils";
+import type {
+  MappingFormState,
+  TestStatus,
+} from "@/lib/components/mappingFormUtils";
 import type { PinMapping } from "@/lib/types";
 
 type Props = {
@@ -49,9 +52,7 @@ export default function MappingCard({
     >
       {isEditing && editForm && onEditFormChange && onEditTest && onSaveEdit ? (
         <>
-          <strong
-            style={{ fontSize: "13px", color: "var(--dash-text-muted)" }}
-          >
+          <strong style={{ fontSize: "13px", color: "var(--dash-text-muted)" }}>
             Editing: {mapping.name}
           </strong>
           <MappingForm
@@ -73,8 +74,12 @@ export default function MappingCard({
           <strong style={{ fontSize: "14px" }}>{mapping.name}</strong>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             <span className="pin-badge pin-badge--r">R: {mapping.red_pin}</span>
-            <span className="pin-badge pin-badge--g">G: {mapping.green_pin}</span>
-            <span className="pin-badge pin-badge--b">B: {mapping.blue_pin}</span>
+            <span className="pin-badge pin-badge--g">
+              G: {mapping.green_pin}
+            </span>
+            <span className="pin-badge pin-badge--b">
+              B: {mapping.blue_pin}
+            </span>
           </div>
           <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
             <button

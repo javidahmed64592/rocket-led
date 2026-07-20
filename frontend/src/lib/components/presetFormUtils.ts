@@ -23,9 +23,7 @@ export const defaultForm: FormState = {
 };
 
 export type FormMode =
-  | { mode: "none" }
-  | { mode: "create" }
-  | { mode: "edit"; preset: LedPreset };
+  { mode: "none" } | { mode: "create" } | { mode: "edit"; preset: LedPreset };
 
 export function patternToForm(preset: LedPreset): FormState {
   return {

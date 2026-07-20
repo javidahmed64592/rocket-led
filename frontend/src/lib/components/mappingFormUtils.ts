@@ -22,9 +22,11 @@ export function pinsValid(form: MappingFormState): boolean {
   );
 }
 
-export function parsePins(
-  form: MappingFormState,
-): { red_pin: number; green_pin: number; blue_pin: number } {
+export function parsePins(form: MappingFormState): {
+  red_pin: number;
+  green_pin: number;
+  blue_pin: number;
+} {
   return {
     red_pin: parseInt(form.red_pin, 10),
     green_pin: parseInt(form.green_pin, 10),

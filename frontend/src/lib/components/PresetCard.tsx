@@ -122,7 +122,7 @@ export default function PresetCard({
             onChange={(e) => ac.onBrightnessChange(parseFloat(e.target.value))}
             onPointerUp={(e) =>
               ac.onBrightnessCommit(
-                parseFloat((e.target as HTMLInputElement).value),
+                parseFloat((e.target as HTMLInputElement).value)
               )
             }
             style={{ width: "100%" }}

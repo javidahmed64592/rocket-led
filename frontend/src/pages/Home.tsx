@@ -120,18 +120,23 @@ export default function Home() {
   }
 
   // Sorted presets
-  const sortedPresets = presets ? [...presets].sort((a, b) => {
-    if (!sortBy) return 0;
-    const av = sortBy === "name" ? a.name : a.pattern.kind;
-    const bv = sortBy === "name" ? b.name : b.pattern.kind;
-    const cmp = av.localeCompare(bv);
-    return sortDir === "asc" ? cmp : -cmp;
-  }) : presets;
+  const sortedPresets = presets
+    ? [...presets].sort((a, b) => {
+        if (!sortBy) return 0;
+        const av = sortBy === "name" ? a.name : a.pattern.kind;
+        const bv = sortBy === "name" ? b.name : b.pattern.kind;
+        const cmp = av.localeCompare(bv);
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : presets;
 
   function handleSortClick(field: SortField) {
     if (sortBy === field) {
       if (sortDir === "asc") setSortDir("desc");
-      else { setSortBy(null); setSortDir("asc"); }
+      else {
+        setSortBy(null);
+        setSortDir("asc");
+      }
     } else {
       setSortBy(field);
       setSortDir("asc");
@@ -216,10 +221,33 @@ export default function Home() {
   return (
     <>
       {/* Preset list */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "0 0 16px", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          margin: "0 0 16px",
+          flexWrap: "wrap",
+        }}
+      >
         <h2 style={{ margin: 0 }}>Presets</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
-          <span style={{ fontSize: "12px", color: "var(--dash-text-muted)", whiteSpace: "nowrap" }}>Sort by</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            marginLeft: "auto",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "12px",
+              color: "var(--dash-text-muted)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Sort by
+          </span>
           {(["name", "pattern"] as const).map((field) => {
             const active = sortBy === field;
             return (
@@ -227,10 +255,20 @@ export default function Home() {
                 key={field}
                 className={`dashboard-btn sort-btn${active ? " sort-btn-active" : " secondary"}`}
                 onClick={() => handleSortClick(field)}
-                title={active ? (sortDir === "asc" ? "Sorted A→Z, click for Z→A" : "Sorted Z→A, click to clear") : `Sort by ${field}`}
+                title={
+                  active
+                    ? sortDir === "asc"
+                      ? "Sorted A→Z, click for Z→A"
+                      : "Sorted Z→A, click to clear"
+                    : `Sort by ${field}`
+                }
               >
                 {field.charAt(0).toUpperCase() + field.slice(1)}
-                {active && <span style={{ marginLeft: "4px" }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
+                {active && (
+                  <span style={{ marginLeft: "4px" }}>
+                    {sortDir === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -337,20 +375,24 @@ export default function Home() {
             }
             onClose={() => setFormMode({ mode: "none" })}
           />
-        ) : formMode.mode === "none" && (
-          <div
-            className="dashboard-card new-preset-card"
-            role="button"
-            tabIndex={0}
-            onClick={openCreate}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") openCreate();
-            }}
-            aria-label="Create new preset"
-          >
-            <span style={{ fontSize: "28px", lineHeight: 1 }}>+</span>
-            <span style={{ fontSize: "13px", fontWeight: 600 }}>New Preset</span>
-          </div>
+        ) : (
+          formMode.mode === "none" && (
+            <div
+              className="dashboard-card new-preset-card"
+              role="button"
+              tabIndex={0}
+              onClick={openCreate}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openCreate();
+              }}
+              aria-label="Create new preset"
+            >
+              <span style={{ fontSize: "28px", lineHeight: 1 }}>+</span>
+              <span style={{ fontSize: "13px", fontWeight: 600 }}>
+                New Preset
+              </span>
+            </div>
+          )
         )}
       </div>
     </>

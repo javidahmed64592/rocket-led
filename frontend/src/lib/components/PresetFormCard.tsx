@@ -43,7 +43,7 @@ export default function PresetFormCard({
   }
 
   const copyablePresets = (presets ?? []).filter(
-    (p) => p.pattern.colours.length > 0 && p.id !== excludePresetId,
+    (p) => p.pattern.colours.length > 0 && p.id !== excludePresetId
   );
 
   return (
