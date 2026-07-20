@@ -9,13 +9,14 @@ import {
   updateMapping,
 } from "@/lib/api";
 import MappingCard from "@/lib/components/MappingCard";
-import MappingForm, {
+import MappingForm from "@/lib/components/MappingForm";
+import {
   emptyMappingForm,
+  type MappingFormState,
   parsePins,
   pinsValid,
-  type MappingFormState,
   type TestStatus,
-} from "@/lib/components/MappingForm";
+} from "@/lib/components/mappingFormUtils";
 import type { PinMapping } from "@/lib/types";
 
 export default function Mappings() {

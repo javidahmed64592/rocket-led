@@ -2,7 +2,8 @@ import { useState } from "react";
 
 import ColourSwatchList from "@/lib/components/ColourSwatchList";
 import type { LedPatternKind, LedPreset } from "@/lib/types";
-import { defaultForm, PATTERN_KINDS, type FormState } from "./PresetForm";
+
+import { defaultForm, type FormState, PATTERN_KINDS } from "./presetFormUtils";
 
 type Props = {
   mode: "create" | "edit";

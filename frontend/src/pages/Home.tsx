@@ -12,13 +12,13 @@ import {
   turnOff,
   updatePreset,
 } from "@/lib/api";
-import PresetFormCard from "@/lib/components/PresetFormCard";
 import PresetCard from "@/lib/components/PresetCard";
+import PresetFormCard from "@/lib/components/PresetFormCard";
 import {
-  patternToForm,
   type FormMode,
   type FormState,
-} from "@/lib/components/PresetForm";
+  patternToForm,
+} from "@/lib/components/presetFormUtils";
 import type { LedPreset, RgbColour } from "@/lib/types";
 
 export default function Home() {
@@ -105,7 +105,19 @@ export default function Home() {
 
   // Brightness
   const [brightness, setBrightnessLocal] = useState<number>(1.0);
+  const [prevServerBrightness, setPrevServerBrightness] = useState<
+    number | undefined
+  >(undefined);
   const brightnessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync brightness from server state using derived-state-during-render pattern
+  if (
+    state?.brightness !== undefined &&
+    state.brightness !== prevServerBrightness
+  ) {
+    setPrevServerBrightness(state.brightness);
+    setBrightnessLocal(state.brightness);
+  }
 
   // Sorted presets
   const sortedPresets = presets ? [...presets].sort((a, b) => {
@@ -143,13 +155,6 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.preset_id]);
-
-  // Sync brightness from server
-  useEffect(() => {
-    if (state?.brightness !== undefined) {
-      setBrightnessLocal(state.brightness);
-    }
-  }, [state?.brightness]);
 
   // Cleanup debounce timers on unmount
   useEffect(() => {

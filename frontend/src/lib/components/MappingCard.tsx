@@ -1,7 +1,5 @@
-import MappingForm, {
-  type MappingFormState,
-  type TestStatus,
-} from "@/lib/components/MappingForm";
+import MappingForm from "@/lib/components/MappingForm";
+import type { MappingFormState, TestStatus } from "@/lib/components/mappingFormUtils";
 import type { PinMapping } from "@/lib/types";
 
 type Props = {
