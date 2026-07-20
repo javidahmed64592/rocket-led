@@ -12,9 +12,9 @@ import {
   turnOff,
   updatePreset,
 } from "@/lib/api";
+import PresetFormCard from "@/lib/components/PresetFormCard";
 import PresetCard from "@/lib/components/PresetCard";
-import PresetForm, {
-  defaultForm,
+import {
   patternToForm,
   type FormMode,
   type FormState,
@@ -45,6 +45,9 @@ export default function Home() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["presets"] });
       setFormMode({ mode: "none" });
+    },
+    onError: () => {
+      // keep the inline card open so the user sees the error
     },
   });
   const updateMutation = useMutation({
@@ -94,7 +97,6 @@ export default function Home() {
 
   // Form state
   const [formMode, setFormMode] = useState<FormMode>({ mode: "none" });
-  const [form, setForm] = useState<FormState>(defaultForm);
 
   // Active-state card draft colours
   const [draftColours, setDraftColours] = useState<RgbColour[] | null>(null);
@@ -158,32 +160,6 @@ export default function Home() {
   }, []);
 
   // Handlers
-  function handleKindChange(kind: FormState["kind"]) {
-    setForm((f) => ({
-      ...f,
-      kind,
-      colours: kind === "solid" ? f.colours.slice(0, 1) : f.colours,
-    }));
-  }
-
-  function handleFormSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    const preset: Omit<LedPreset, "id"> = {
-      name: form.name.trim(),
-      pattern: {
-        kind: form.kind,
-        colours: form.kind === "rainbow" ? [] : form.colours,
-        interval_ms: form.interval_ms,
-      },
-    };
-    if (formMode.mode === "edit" && formMode.preset.id != null) {
-      updateMutation.mutate({ id: formMode.preset.id, preset });
-    } else {
-      createMutation.mutate(preset);
-    }
-  }
-
   function handleDraftColourChange(colours: RgbColour[]) {
     setDraftColours(colours);
     if (activePreset) {
@@ -225,36 +201,15 @@ export default function Home() {
   }
 
   function openEdit(preset: LedPreset) {
-    setForm(patternToForm(preset));
     setFormMode({ mode: "edit", preset });
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function openCreate() {
-    setForm(defaultForm);
     setFormMode({ mode: "create" });
   }
 
-  const isMutating = createMutation.isPending || updateMutation.isPending;
-  const formError = createMutation.error ?? updateMutation.error ?? null;
-
   return (
     <>
-      {/* Create / Edit form */}
-      {formMode.mode !== "none" && (
-        <PresetForm
-          formMode={formMode}
-          form={form}
-          presets={presets}
-          isMutating={isMutating}
-          error={formError}
-          onFormChange={setForm}
-          onKindChange={handleKindChange}
-          onSubmit={handleFormSubmit}
-          onClose={() => setFormMode({ mode: "none" })}
-        />
-      )}
-
       {/* Preset list */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "0 0 16px", flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>Presets</h2>
@@ -286,6 +241,35 @@ export default function Home() {
       >
         {sortedPresets?.map((preset) => {
           const isActive = state?.preset_id === preset.id;
+
+          if (formMode.mode === "edit" && formMode.preset.id === preset.id) {
+            return (
+              <PresetFormCard
+                key={preset.id}
+                mode="edit"
+                initialForm={patternToForm(preset)}
+                excludePresetId={preset.id}
+                presets={presets}
+                isMutating={updateMutation.isPending}
+                error={updateMutation.error}
+                onSubmit={(fs: FormState) =>
+                  updateMutation.mutate({
+                    id: preset.id!,
+                    preset: {
+                      name: fs.name.trim(),
+                      pattern: {
+                        kind: fs.kind,
+                        colours: fs.kind === "rainbow" ? [] : fs.colours,
+                        interval_ms: fs.interval_ms,
+                      },
+                    },
+                  })
+                }
+                onClose={() => setFormMode({ mode: "none" })}
+              />
+            );
+          }
+
           return (
             <PresetCard
               key={preset.id}
@@ -330,7 +314,25 @@ export default function Home() {
             />
           );
         })}
-        {formMode.mode === "none" && (
+        {formMode.mode === "create" ? (
+          <PresetFormCard
+            mode="create"
+            presets={presets}
+            isMutating={createMutation.isPending}
+            error={createMutation.error}
+            onSubmit={(fs: FormState) =>
+              createMutation.mutate({
+                name: fs.name.trim(),
+                pattern: {
+                  kind: fs.kind,
+                  colours: fs.kind === "rainbow" ? [] : fs.colours,
+                  interval_ms: fs.interval_ms,
+                },
+              })
+            }
+            onClose={() => setFormMode({ mode: "none" })}
+          />
+        ) : formMode.mode === "none" && (
           <div
             className="dashboard-card new-preset-card"
             role="button"

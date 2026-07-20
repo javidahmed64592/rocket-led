@@ -34,8 +34,7 @@ type Props = {
 };
 
 function formatInterval(ms: number): string {
-  const s = ms / 1000;
-  return `${Number.isInteger(s) ? s : s.toFixed(1)}s`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 function PowerIcon() {
